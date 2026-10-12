@@ -37,7 +37,7 @@ const COPY: Record<Mode, { eyebrow: string; heading: string; blurb: string; cta:
     eyebrow: "Want one like this?",
     heading: "Tell us, and we will watch for the next one",
     blurb:
-      "One of one — when this goes, it goes. Leave your email and we will message you the moment another comes through the workshop.",
+      "Leave your details and tell us what you’re looking for. We’ll let you know when a suitable item becomes available.",
     cta: "Keep me posted",
   },
   sold: {
@@ -50,8 +50,7 @@ const COPY: Record<Mode, { eyebrow: string; heading: string; blurb: string; cta:
   general: {
     eyebrow: "Looking for something specific?",
     heading: "Tell us what you need",
-    blurb:
-      "Describe the machine and the number you have to hit. If it is not on the floor this week, we will watch for it and send you photos and a price.",
+    blurb: "WhatsApp or call us with the details of what you’re looking for.",
     cta: "Send it through",
   },
 };
@@ -131,8 +130,7 @@ export default function EnquiryForm({
         </div>
         <h3 className="text-xl sm:text-2xl font-medium tracking-tight mb-3">{copy.heading}</h3>
         <p className="text-sm font-light text-muted leading-relaxed mb-6">
-          Our web form is offline for the moment. WhatsApp or call us instead — a person
-          answers both, and we write down what you are after either way.
+          Our enquiry form is temporarily unavailable. Please WhatsApp or call us instead.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <a

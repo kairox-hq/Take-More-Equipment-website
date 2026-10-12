@@ -29,6 +29,7 @@ export async function GET() {
         price: item.price,
         image: item.images[0] ?? null,
         sold: !!item.sold,
+        availability: item.availability ?? "available",
         tags: item.tags,
       })),
     },

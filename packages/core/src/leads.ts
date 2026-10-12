@@ -17,6 +17,10 @@ export const LEAD_SOURCES = [
   "referral",
   "auction",
   "import",
+  "marketplace",
+  "social_media",
+  "google",
+  "website",
 ] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
@@ -29,7 +33,14 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   referral: "Referred",
   auction: "Met at auction",
   import: "Imported list",
+  marketplace: "Marketplace",
+  social_media: "Social media",
+  google: "Google",
+  website: "Website",
 };
+
+/** Staff capture choices; historical sources keep their original meaning. */
+export const CUSTOMER_SOURCES = ["whatsapp", "marketplace", "website", "social_media", "google", "walk_in", "referral"] as const satisfies readonly LeadSource[];
 
 /**
  * Sources where the details were taken in the course of doing business.

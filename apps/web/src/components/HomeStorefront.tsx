@@ -26,9 +26,10 @@ export default function HomeStorefront({ stock, vocabulary, categories, formEnab
       <SegmentSwitcher />
       <div data-segment-surface>{featured.length > 0 && <FeaturedStock items={featured} />}</div>
       <div data-segment-surface><Catalogue key={segment} stock={selectedStock} vocabulary={scopedVocabulary} segment={segment} /></div>
-      <div data-segment-surface>{home ? <HomeStory kind="discovery" /> : process}</div>
+      <div data-segment-surface>{home ? <HomeStory kind="discovery" /> : about}</div>
+      {!home && <div data-segment-surface>{process}</div>}
       <div data-segment-surface>{home ? <HomeStory kind="details" /> : proof}</div>
-      <div data-segment-surface>{home ? <HomeStory kind="visit" /> : about}</div>
+      {home && <div data-segment-surface><HomeStory kind="visit" /></div>}
       <div data-segment-surface><BuyingInfo /></div>
       <div data-segment-surface><CtaBand key={segment} categories={choices} formEnabled={formEnabled} homestaging={home} /></div>
       <div data-segment-surface>{footer}</div>

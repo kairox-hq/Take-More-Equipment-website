@@ -35,6 +35,7 @@ export default function Footer() {
         {/* Reachable from every page, not only from the forms that link to it —
             POPIA s18 is about the person being able to find out what you hold,
             which is not satisfied by a link they only see once. */}
+        <Link href="/before-you-buy" className="hover:text-white transition-colors">Before you buy</Link>
         <Link href="/privacy" className="hover:text-white transition-colors">
           Privacy
         </Link>

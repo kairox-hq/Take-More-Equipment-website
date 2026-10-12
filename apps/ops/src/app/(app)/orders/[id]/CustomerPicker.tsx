@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { createBrowserClient } from "@takemore/db";
 import { Button, Field, Input, Panel } from "@takemore/ui";
-import { formatPhone, normalisePhone } from "@takemore/core";
+import { CUSTOMER_SOURCES, LEAD_SOURCE_LABELS, type LeadSource, formatPhone, normalisePhone } from "@takemore/core";
 import { useLiveSearch } from "@/lib/useLiveSearch";
 import { createOrderCustomer, setOrderCustomer } from "../actions";
 import type { OrderDetail } from "@/lib/orders";
@@ -34,7 +34,7 @@ export default function CustomerPicker({
   const [query, setQuery] = useState("");
   const [capturing, setCapturing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ full_name: "", phone: "", email: "", business_name: "" });
+  const [form, setForm] = useState({ full_name: "", phone: "", email: "", business_name: "", source: "walk_in" as LeadSource });
 
   const fetcher = useCallback(async (term: string): Promise<Hit[]> => {
     const client = createBrowserClient();
@@ -60,7 +60,7 @@ export default function CustomerPicker({
     setSaving(false);
     if (result.ok) {
       setCapturing(false);
-      setForm({ full_name: "", phone: "", email: "", business_name: "" });
+      setForm({ full_name: "", phone: "", email: "", business_name: "", source: "walk_in" as LeadSource });
     }
     onDone(result.ok ? { ok: true, message: result.notice } : { ok: false, message: result.error });
   };
@@ -173,6 +173,12 @@ export default function CustomerPicker({
             />
           </Field>
 
+          <Field label="How did they reach us?">
+            <select aria-label="How did they reach us?" value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value as LeadSource }))}
+              className="w-full bg-background border border-border rounded-xl p-3 text-sm">
+              {CUSTOMER_SOURCES.map(source => <option key={source} value={source}>{LEAD_SOURCE_LABELS[source]}</option>)}
+            </select>
+          </Field>
           <Button
             variant="primary"
             loading={saving}

@@ -1,4 +1,4 @@
-import type { Segment } from "@takemore/core";
+import type { PublicAvailability, Segment } from "@takemore/core";
 /**
  * The storefront's view model.
  *
@@ -67,13 +67,12 @@ export type Equipment = {
   /** First entry is the card image. */
   images: string[];
   description: string;
-  /** What the workshop actually replaced — the proof behind the grade. */
-  workshopNotes: string[];
   /** width × depth × height, in millimetres. */
   dimensionsMm: [number, number, number];
   weightKg: number;
   /** Sold units stay listed with a badge until a human unpublishes them. */
   sold?: boolean;
+  availability?: PublicAvailability;
   /** Surfaced in the highlighted row above the catalogue. */
   featured?: boolean;
   /** ISO timestamp of publication, when the view supplied one. Feeds the sitemap. */

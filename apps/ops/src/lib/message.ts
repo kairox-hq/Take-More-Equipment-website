@@ -1,6 +1,6 @@
 
 import { gradeLabel } from "@takemore/core";
-import { rands, type OutreachChannel } from "@takemore/core";
+import { randsExact as rands, type OutreachChannel } from "@takemore/core";
 
 /**
  * The draft a staff member sends.
@@ -198,6 +198,8 @@ export function draftInvoiceMessage(context: {
   number: string;
   leadName: string | null;
   totalCents: number;
+  receivedCents?: number;
+  balanceCents?: number;
   /** Set only when the machines are coming to them rather than being collected. */
   delivering: boolean;
   /**
@@ -209,11 +211,12 @@ export function draftInvoiceMessage(context: {
 }): string {
   const total = rands(context.totalCents);
 
-  if (context.kind === "proforma") {
+  if (context.kind === "proforma" || (context.balanceCents ?? 0) > 0) {
     return [
       `Hi ${firstName(context.leadName)}, it's Take More.`,
       "",
-      `Here is ${context.number} for what we put aside for you — ${total}.`,
+      `Here is ${context.number} for your order — total ${total}${context.receivedCents ? `, received ${rands(context.receivedCents)}` : ""}${context.balanceCents != null ? `, outstanding ${rands(context.balanceCents)}` : ""}.`,
+      "Please use your name and surname as the payment reference.",
       "",
       context.bankOnDocument === false
         ? "Let us know when you're ready to pay and we'll send you the banking details."
@@ -234,4 +237,12 @@ export function draftInvoiceMessage(context: {
       ? "We'll be in touch about the delivery. Keep this as your purchase reference."
       : "Keep this as your purchase reference. Contact our team if you have a question.",
   ].join("\n");
+}
+
+/** A draft for staff to review; preparing it never sends a message. */
+export function draftPaymentReminder(context: { name: string | null; code: string; amount: number; due: string | null }): string {
+  return [`Hi ${context.name?.trim() || "there"}, it’s Take More.`, "",
+    `Payment reminder for ${context.code}: ${rands(context.amount)}${context.due ? ` due on ${context.due}` : " outstanding"}.`,
+    "Please use your name and surname as the payment reference.",
+    "If you have already paid, please send us your proof of payment so we can check and update your balance."] .join("\n");
 }

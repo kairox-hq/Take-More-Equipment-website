@@ -8,7 +8,7 @@ import {
   hireBreakdown,
   hireDays,
   hireFeeCents,
-  rands,
+  randsExact as rands,
 } from "@takemore/core";
 import { returnHire, setHireDates } from "../actions";
 import type { OrderDetail, OrderLineRow } from "@/lib/orders";
@@ -98,6 +98,12 @@ export default function HirePanel({
             {longDay(order.hire_start)} to {longDay(order.hire_end)}
           </p>
 
+          {savedDays && <div className="space-y-2 text-sm border-t border-border pt-3">
+            {lines.map(line => { const b = hireBreakdown(line.list_price_cents, savedDays); return <p key={line.id}>
+              <span className="font-mono">{line.item?.sku}</span> · {b.fullDays} × {rands(b.dailyCents)}
+              {b.discountedDays > 0 ? ` + ${b.discountedDays} × ${rands(b.discountedCents)}` : ""} = {rands(b.totalCents)}
+            </p>; })}
+          </div>}
           {paid && (
             <div className="border-t border-white/5 pt-3 space-y-2">
               {returned ? (
@@ -115,7 +121,7 @@ export default function HirePanel({
               ) : (
                 <>
                   <p className="text-[11px] font-light text-muted">
-                    Out on hire. The machines are held and off the website until they come back.
+                    Out on hire. The website shows “Coming back soon”; these machines cannot be bought until they return.
                   </p>
                   {!confirmingReturn ? (
                     <Button variant="secondary" disabled={busy} onClick={() => setConfirmingReturn(true)}>

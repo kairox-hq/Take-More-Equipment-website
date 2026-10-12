@@ -1,6 +1,6 @@
 "use client";
 
-import { gradeLabel } from "@takemore/core";
+import { AVAILABILITY_LABELS, gradeLabel } from "@takemore/core";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ export default function EquipmentCard({
   capacity,
   power,
   sold,
+  availability = "available",
   variant = "carousel",
   decorative = false,
 }: Equipment & { variant?: "carousel" | "grid"; decorative?: boolean }) {
@@ -122,7 +123,7 @@ export default function EquipmentCard({
             {brand}
           </span>
         )}
-        {sold ? (
+        {availability !== "available" ? <span className="rounded-full bg-background/90 border border-white/20 px-3 py-1 text-xs text-white">{AVAILABILITY_LABELS[availability]}</span> : sold ? (
           <span
             className={`rounded-full bg-accent text-background font-medium tracking-widest uppercase shrink-0 ${
               grid

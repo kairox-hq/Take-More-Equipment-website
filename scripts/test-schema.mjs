@@ -238,9 +238,9 @@ r = await one(db, `select count(*) c, sum(list_price_cents) t from public.order_
 check(`both machines went on, one of them typed as "${typed}"`,
       num(r.c) === 2 && num(r.t) === 5_000_000, `${r.c} lines, R${num(r.t) / 100}`);
 
-rows = await all(db, `select status, published_at from public.items where id in ('${big.id}','${small.id}')`);
-check("adding a machine holds it and takes it off the website",
-      rows.every((x) => x.status === "reserved" && x.published_at === null));
+rows = await all(db, `select status, published_at, website_availability from public.items where id in ('${big.id}','${small.id}')`);
+check("adding a published machine holds it and shows Reserved on the website",
+      rows.every((x) => x.status === "reserved" && x.published_at && x.website_availability === "reserved"));
 
 check("the same machine cannot go on twice",
       await refuses(db, `select public.add_order_line('${order.id}', '${big.sku}')`));
@@ -262,7 +262,7 @@ check("delivery without an address is refused",
 // Asking R50 000, agreed R45 000.
 await db.exec(`select public.confirm_order_paid('${order.id}', 4500000, 'card_machine', 'SLIP-1')`);
 
-rows = await all(db, `select i.status, i.sale_price_cents s, i.sold_at, i.published_at, l.sold_price_cents ls
+rows = await all(db, `select i.status, i.sale_price_cents s, i.sold_at, i.published_at, i.website_availability, l.sold_price_cents ls
                       from public.order_lines l join public.items i on i.id=l.item_id
                       where l.order_id='${order.id}' order by l.position`);
 check("the discount is split pro-rata by asking price",
@@ -465,8 +465,10 @@ check("and the order is open again carrying no payment", r.status === "draft" &&
  * number series, so a gap in the invoice run is never explained as "that one
  * was a quote".
  */
-check("an invoice cannot be issued for money that has not arrived",
-      await refuses(db, issue("invoice")));
+r = await one(db, issue("invoice"));
+const correctedBeforePayment = await one(db, `select document d from public.order_invoices where id='${r.issue_invoice.id}'`);
+check("a correction retains the actual payment and shows the revised balance",
+  correctedBeforePayment.d.received_cents === 4_615_000 && correctedBeforePayment.d.balance_cents === 500_000);
 r = await one(db, issue("proforma"));
 check("a proforma gets its own series, not a number out of the invoice run",
       r.issue_invoice.number === "PRO-0001", r.issue_invoice.number);
@@ -481,18 +483,19 @@ await db.exec(`select public.confirm_order_paid('${order.id}', 4500000, 'bank_tr
  * writes onto the customer's timeline.
  */
 r = await one(db, issue("invoice"));
-check("a corrected sale issues a fresh invoice rather than editing the old one",
-      r.issue_invoice.number === "INV-0016", r.issue_invoice.number);
-check("and the new one records which document it replaces",
-      r.issue_invoice.supersedes !== null);
+check("a corrected sale has already issued a fresh invoice automatically",
+      r.issue_invoice.number !== doc.number && r.issue_invoice.reused === true, r.issue_invoice.number);
+const revisedRow = await one(db, `select supersedes,document from public.order_invoices where id='${r.issue_invoice.id}'`);
+check("and the new one records which document it replaces", revisedRow.supersedes !== null);
 r = await one(db, `select count(*) c from public.order_invoices where order_id='${order.id}'`);
-check("both invoices and the proforma are all still on the record", num(r.c) === 3, `${r.c}`);
+const documentsBeforeCancellation = num(r.c);
+check("original, corrected and proforma documents are all still on the record", documentsBeforeCancellation === 4, `${r.c}`);
 
 await db.exec(`select public.void_order('${order.id}', 'Finance fell through')`);
 
 check("a cancelled sale has nothing left to invoice", await refuses(db, issue("invoice")));
 r = await one(db, `select count(*) c from public.order_invoices where order_id='${order.id}'`);
-check("but the documents already issued survive the cancellation", num(r.c) === 3, `${r.c}`);
+check("but the documents already issued survive the cancellation", num(r.c) === documentsBeforeCancellation, `${r.c}`);
 
 rows = await all(db, `select i.status, i.sale_price_cents s, i.sold_at from public.order_lines l
                       join public.items i on i.id=l.item_id where l.order_id='${order.id}'`);
@@ -663,7 +666,7 @@ check("the dates cannot be the wrong way round",
 await db.exec(`update public.orders set hire_start='2026-09-01', hire_end='2026-09-10', sold_total_cents = 1
                where id='${hire.id}'`);
 r = await one(db, `select sold_total_cents t from public.orders where id='${hire.id}'`);
-check("a draft hire never carries a typed total", r.t === null, String(r.t));
+check("a draft hire recomputes the total instead of accepting a typed amount", num(r.t) === 382_000 + hireFeeCents(1_234_500,10), String(r.t));
 
 check("the sale RPC refuses a hire",
       await refuses(db, `select public.confirm_order_paid('${hire.id}', 382000, 'card_machine', null)`));
@@ -695,12 +698,12 @@ const expectedOdd = hireFeeCents(1_234_500, 10);
 r = await one(db, `select status, sold_total_cents t, charged_total_cents c from public.orders where id='${hire.id}'`);
 check("the hire total is computed from the dates and the asking prices",
       r.status === "paid" && num(r.t) === 382_000 + expectedOdd, `R${num(r.t) / 100}`);
-rows = await all(db, `select i.status, i.sale_price_cents s, i.sold_at, i.published_at, l.sold_price_cents ls
+rows = await all(db, `select i.status, i.sale_price_cents s, i.sold_at, i.published_at, i.website_availability, l.sold_price_cents ls
                       from public.order_lines l join public.items i on i.id=l.item_id
                       where l.order_id='${hire.id}' order by l.position`);
 check("each line records what that machine earned", num(rows[0].ls) === 382_000 && num(rows[1].ls) === expectedOdd);
-check("the machines are held, off the website, and NOT sold",
-      rows.every((x) => x.status === "reserved" && x.s === null && x.sold_at === null && x.published_at === null),
+check("the hired machines remain visible as Coming back soon and are NOT sold",
+      rows.every((x) => x.status === "reserved" && x.s === null && x.sold_at === null && x.published_at && x.website_availability === "on_hire"),
       rows.map((x) => x.status).join(","));
 const hireRevenueAfter = num((await one(db, `select coalesce(sum(revenue_cents),0) r from public.money_by_month`)).r);
 check("the per-machine money views did not count a hire as a sale", hireRevenueAfter === hireRevenueBefore);
@@ -727,10 +730,10 @@ stored = await one(db, `select document d, total_cents t from public.order_invoi
   // R12 345 asks R493.80 a day. Rounded to whole rands, the words on the line
   // disagreed with the figures beside them.
   check("a daily rate with cents in it is printed with the cents",
-        doc.lines.some((l) => l.description.includes("R493.80/day")),
+        doc.lines.some((l) => l.description.includes("7 x R493.80 + 3 x R419.73")),
         doc.lines.map((l) => l.description).join(" | "));
-  check("and a whole-rand rate is printed without them",
-        doc.lines.some((l) => l.description.includes("at R400/day")),
+  check("and whole-rand daily rates are also printed to two decimals",
+        doc.lines.some((l) => l.description.includes("7 x R400.00 + 3 x R340.00")),
         doc.lines.map((l) => l.description).join(" | "));
   check("and it asks for exactly what the order says the customer pays",
         num(stored.t) === num((await one(db, `select charged_total_cents c from public.orders where id='${hire.id}'`)).c));
@@ -856,6 +859,143 @@ check('unapproved authenticated user cannot read receipts',num(r.n)===0);
 check('unapproved user cannot choose purchase option',await refuses(db,`select public.choose_purchase_option('${staffDraft.id}','immediate')`));
 check('unapproved user cannot call payment RPC',await refuses(db,`select public.record_order_receipt('${reserved.id}',100,'bank_transfer','X','2026-02-01',gen_random_uuid(),true)`));
 await db.exec(`reset role`);
+
+console.log('\nCHARGES, SETTLEMENT AND AVAILABILITY');
+await signIn(db);
+const dateSA = (await one(db,"select (now() at time zone 'Africa/Johannesburg')::date::text d")).d;
+const testBuyer = await one(db,"insert into public.leads(full_name,email,source) values('Test Customer','charge-check@example.test','marketplace') returning id");
+const newAgreement = async (name, price, option) => {
+  const item = await make(name,price,0,0);
+  const o = await one(db,`insert into public.orders(lead_id) values('${testBuyer.id}') returning id`);
+  await db.exec(`select public.add_order_line('${o.id}',null,'${item.id}'); select public.choose_purchase_option('${o.id}','${option}')`);
+  return { item, id:o.id };
+};
+const latestDocument = async id => (await one(db,`select document d,id from public.order_invoices where order_id='${id}' order by issued_at desc,number desc limit 1`));
+const installation = async (id,quote=null,accepted=false) => {
+  await db.exec(`select public.set_order_installation('${id}',${quote ?? 'null'},${accepted})`);
+};
+const receipt = async (id,amount,refund=false,method='bank_transfer',date=dateSA,request=null) => {
+  const key = request ?? (await one(db,'select gen_random_uuid() id')).id;
+  await db.exec(`select public.record_order_receipt('${id}',${amount},'${method}','Test Customer','${date}','${key}',${refund})`);
+  return key;
+};
+const balanceFor = async id => {
+  const o=await one(db,`select *,plan_start::text as plan_start,plan_final_due::text as plan_final_due from public.orders where id='${id}'`);
+  const payments=await all(db,`select * from public.order_receipts where order_id='${id}'`);
+  return { order:o, payments, ...planBalance(o,num(o.charged_total_cents),payments) };
+};
+
+const reservation=await newAgreement('Reservation payment example',20_000,'reservation');
+await db.exec(`select public.save_sale_plan('${reservation.id}','reservation',20000,'${dateSA}',null,null,10000,null); select public.issue_invoice('${reservation.id}','proforma','${issuer()}'::jsonb)`);
+const originalProforma=await latestDocument(reservation.id);
+await receipt(reservation.id,10_000);
+let settled=await balanceFor(reservation.id);
+let currentDoc=await latestDocument(reservation.id);
+check('a recorded deposit automatically revises invoice payments and outstanding balance',currentDoc.d.total_cents===20_000 && currentDoc.d.received_cents===10_000 && currentDoc.d.balance_cents===10_000 && checkInvoiceTotals(currentDoc.d)===null);
+check('the originally issued proforma stays unchanged',(await one(db,`select document d from public.order_invoices where id='${originalProforma.id}'`)).d.received_cents===0);
+check('the reservation stays visible but unavailable',(await one(db,`select availability from public.public_items where id='${reservation.item.id}'`)).availability==='reserved');
+const dueDate=settled.order.plan_final_due;
+const dayAfterDue=new Date(`${dueDate}T12:00:00Z`); dayAfterDue.setUTCDate(dayAfterDue.getUTCDate()+1);
+check('a deadline today is due but not yet overdue',planBalance(settled.order,20_000,settled.payments,dueDate).overdue===0);
+const past=planBalance(settled.order,20_000,settled.payments,dayAfterDue.toISOString().slice(0,10));
+check('after the reservation deadline the unpaid balance is overdue with its date',past.overdue===10_000 && past.overdueDate===dueDate);
+const retryKey=await receipt(reservation.id,5_000);
+await receipt(reservation.id,5_000,false,'bank_transfer',dateSA,retryKey);
+settled=await balanceFor(reservation.id);
+check('a retried payment is counted once and reduces the overdue amount',settled.received===15_000 && planBalance(settled.order,20_000,settled.payments,dayAfterDue.toISOString().slice(0,10)).overdue===5_000);
+await receipt(reservation.id,5_000);
+currentDoc=await latestDocument(reservation.id);
+check('final payment automatically updates the invoice to fully paid',currentDoc.d.balance_cents===0 && currentDoc.d.received_cents===20_000 && checkInvoiceTotals(currentDoc.d)===null);
+check('PayJustNow is refused as a refund method',await refuses(db,`select public.record_order_receipt('${reservation.id}',100,'payjustnow','X','${dateSA}',gen_random_uuid(),true)`));
+
+const lay=await newAgreement('Lay-by reminder',100_000,'layby');
+await db.exec(`select public.save_sale_plan('${lay.id}','layby',100000,'2026-01-31',2,31,10000,null)`);
+await receipt(lay.id,10_000,false,'bank_transfer','2026-01-31');
+settled=await balanceFor(lay.id);
+const layDue=planBalance(settled.order,100_000,settled.payments,'2026-03-01');
+check('lay-by uses the last day of short months and only the unpaid instalment is overdue',layDue.overdue===45_000 && layDue.overdueDate==='2026-02-28');
+check('lay-by stock is hidden from the storefront',!(await one(db,`select count(*) n from public.public_items where id='${lay.item.id}'`)).n);
+await db.exec('set role anon');
+check('hidden stock and its media cannot be read through the anonymous base API',num((await one(db,`select count(*) n from public.items where id='${lay.item.id}'`)).n)===0 && num((await one(db,`select count(*) n from public.public_item_media where item_id='${lay.item.id}'`)).n)===0);
+check('anonymous callers cannot change installation quotes',await refuses(db,`select public.set_order_installation('${lay.id}',100,true)`));
+await db.exec('reset role');
+await db.exec(`select public.void_order('${lay.id}','Test cancellation')`);
+check('cancelling lay-by returns complete stock to the website as available',(await one(db,`select availability from public.public_items where id='${lay.item.id}'`)).availability==='available');
+await receipt(lay.id,10_000,true,'bank_transfer');
+check('a cancelled lay-by refund retains its history and settles the amount to return',(await balanceFor(lay.id)).received===0);
+
+const rental=await newAgreement('18-day hire example',20_000,'hire');
+await db.exec(`update public.orders set hire_start='2026-09-01',hire_end='2026-09-18' where id='${rental.id}'`);
+await db.exec(`select public.issue_invoice('${rental.id}','proforma','${issuer()}'::jsonb)`);
+currentDoc=await latestDocument(rental.id);
+check('18-day hire is 7 x R8.00 + 11 x R6.80 = R130.80',currentDoc.d.subtotal_cents===13_080 && currentDoc.d.lines[0].description.includes('7 x R8.00 + 11 x R6.80'));
+check('hire invoice and payment ledger match the unchanged hire calculation',currentDoc.d.total_cents===13_080 && checkInvoiceTotals(currentDoc.d)===null);
+await db.exec(`select public.confirm_hire_paid('${rental.id}','card_machine','Hire test')`);
+check('a paid hire is visible as Coming back soon',(await one(db,`select availability from public.public_items where id='${rental.item.id}'`)).availability==='on_hire');
+await db.exec(`select public.return_hire('${rental.id}')`);
+check('returning the hire makes the item available again without losing its payment history',(await one(db,`select availability from public.public_items where id='${rental.item.id}'`)).availability==='available' && (await balanceFor(rental.id)).received===13_080);
+
+const financed=await newAgreement('Installation example',100_000,'asset_finance');
+await installation(financed.id,20_000);
+await db.exec(`select public.save_sale_plan('${financed.id}','asset_finance',100000,'${dateSA}',null,null,20000,'${dateSA}'); select public.issue_invoice('${financed.id}','proforma','${issuer()}'::jsonb)`);
+check('an optional installation quote is not charged until accepted',(await latestDocument(financed.id)).d.total_cents===100_000);
+await receipt(financed.id,20_000);
+await installation(financed.id,20_000,true);
+currentDoc=await latestDocument(financed.id);
+check('accepted installation updates total, outstanding balance and invoice after payment',currentDoc.d.total_cents===120_000 && currentDoc.d.balance_cents===100_000 && currentDoc.d.charges.installation_cents===20_000 && checkInvoiceTotals(currentDoc.d)===null);
+check('Rental Finance stock is hidden',num((await one(db,`select count(*) n from public.public_items where id='${financed.item.id}'`)).n)===0);
+check('installation quotes cannot be attached to other purchase options',await refuses(db,`select public.set_order_installation('${reservation.id}',100,true)`));
+check('accepted installation requires a non-negative quote',await refuses(db,`select public.set_order_installation('${financed.id}',null,true)`));
+await receipt(financed.id,100_000);
+await installation(financed.id,30_000,true);
+settled=await balanceFor(financed.id);
+check('installation added after full payment preserves recorded payments and reopens only the extra balance',settled.order.status==='paid' && settled.received===120_000 && settled.balance===10_000);
+await receipt(financed.id,10_000);
+await installation(financed.id,20_000,true);
+settled=await balanceFor(financed.id);
+check('a lower accepted installation quote preserves receipts and shows the refund due',settled.balance===0 && settled.refundDue===10_000);
+await receipt(financed.id,10_000,true,'cash');
+currentDoc=await latestDocument(financed.id);
+check('Cash refunds reconcile the invoice without cancelling the completed sale',currentDoc.d.received_cents===120_000 && currentDoc.d.refund_due_cents===0 && currentDoc.d.payments.at(-1).method==='cash' && checkInvoiceTotals(currentDoc.d)===null);
+await db.exec(`select public.void_order('${financed.id}','Test cancellation')`);
+// Paid stock is republished by the server action through the normal publish gate.
+await db.exec(`update public.items set published_at=now() where id='${financed.item.id}' and status='listed'`);
+check('cancelling Rental Finance makes the item available again',(await one(db,`select availability from public.public_items where id='${financed.item.id}'`)).availability==='available');
+
+const tag=(await one(db,'select id from public.tags limit 1')).id;
+await db.exec(`set role authenticated; insert into public.item_tags(item_id,tag_id) values('${financed.item.id}','${tag}'); delete from public.item_tags where item_id='${financed.item.id}' and tag_id='${tag}'`);
+check('approved staff can remove the last product tag',num((await one(db,`select count(*) n from public.item_tags where item_id='${financed.item.id}'`)).n)===0);
+check('new charge columns cannot be written outside the validating RPC',!(await one(db,"select has_column_privilege('authenticated','public.orders','installation_quote_cents','update') allowed")).allowed);
+await db.exec('reset role');
+
+console.log('\nUPGRADING EXISTING PAYMENT HISTORY');
+let historicalVoid, historicalHire;
+const upgraded = await build({ before: '20261012154553_order_charges_payments_and_availability.sql', seed: async oldDb => {
+  await signIn(oldDb);
+  const cat=(await one(oldDb,"select id from public.categories limit 1")).id;
+  const buyer=(await one(oldDb,"insert into public.leads(full_name,email,source) values('Historical Test','historical@example.test','walk_in') returning id")).id;
+  const olderItem=async name => {
+    const i=await one(oldDb,`insert into public.items(title,category_id,condition_grade,list_price_cents,description,status)
+      values('${name}','${cat}','B',20000,'A complete test item for verifying the migration of existing records.','listed') returning id`);
+    await oldDb.exec(`insert into public.item_media(item_id,kind,storage_path,is_placeholder) values('${i.id}','photo','${i.id}/test.jpg',false); update public.items set published_at=now() where id='${i.id}'`);
+    return i.id;
+  };
+  const soldItem=await olderItem('Historical sold item');
+  historicalVoid=(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id;
+  await oldDb.exec(`select public.add_order_line('${historicalVoid}',null,'${soldItem}'); select public.choose_purchase_option('${historicalVoid}','immediate');
+    select public.confirm_order_paid('${historicalVoid}',20000,'card_machine','Historical slip'); select public.void_order('${historicalVoid}','Test cancellation')`);
+  const hiredItem=await olderItem('Historical hired item');
+  historicalHire={ id:(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id,item:hiredItem };
+  await oldDb.exec(`select public.add_order_line('${historicalHire.id}',null,'${hiredItem}'); select public.choose_purchase_option('${historicalHire.id}','hire');
+    update public.orders set hire_start='2026-09-01',hire_end='2026-09-18' where id='${historicalHire.id}'; select public.confirm_hire_paid('${historicalHire.id}','bank_transfer','Historical hire')`);
+} });
+r=await one(upgraded,`select amount_cents,reference,entry_kind from public.order_receipts where order_id='${historicalVoid}'`);
+check('a previously cancelled paid order retains its recorded full payment for refund reconciliation',num(r.amount_cents)===20_000 && r.entry_kind==='payment' && r.reference==='Historical slip');
+r=await one(upgraded,`select amount_cents from public.order_receipts where order_id='${historicalHire.id}'`);
+check('an existing paid hire is converted to the payment ledger exactly once',num(r.amount_cents)===13_080 && num((await one(upgraded,`select count(*) n from public.order_receipts where order_id='${historicalHire.id}'`)).n)===1);
+check('an existing complete hire is republished as Coming back soon',(await one(upgraded,`select availability from public.public_items where id='${historicalHire.item}'`)).availability==='on_hire');
+check('retired workshop reports are not publicly readable',!(await one(upgraded,"select has_column_privilege('anon','public.items','workshop_notes','select') allowed")).allowed);
+await upgraded.close();
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {

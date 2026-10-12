@@ -8,18 +8,18 @@ export default function Process() {
   const steps = [
     {
       icon: "solar:settings-linear",
-      title: "We rebuild it",
-      copy: "We inspect and repair our second-hand catering equipment before it goes on the floor. Check each listing for the work carried out.",
+      title: "We inspect and repair",
+      copy: "Our second-hand catering equipment is inspected and repaired before being listed for sale.",
     },
     {
       icon: "solar:checklist-minimalistic-linear",
-      title: "We test it",
-      copy: "We test the equipment, photograph it and describe its condition, so you know what you are coming to see.",
+      title: "Know what to expect",
+      copy: "We photograph each item, describe it and clearly state its condition, so you know what you are coming to see.",
     },
     {
       icon: "solar:delivery-linear",
-      title: "Visit. Choose. Take it home.",
-      copy: "Or get it shipped to your door. Visit our Montague Gardens warehouse, choose your equipment and arrange collection or delivery with our team.",
+      title: "View and choose",
+      copy: "Visit our Montague Gardens warehouse to see the equipment and choose what suits your kitchen. Collect your purchase or let us arrange delivery, quoted separately.",
     },
   ];
 

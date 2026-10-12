@@ -4,6 +4,7 @@ import type {
   PurchaseOption,
   SaleTerms,
   OrderReceipt,
+  OrderCharges,
   InvoiceDocument,
   InvoiceKind,
   ItemStatus,
@@ -32,7 +33,8 @@ const orEmpty = <T>(
   return result.data ?? [];
 };
 
-export type OrderRow = SaleTerms & {
+export type OrderRow = SaleTerms & OrderCharges & {
+  charges_ready: boolean;
   purchase_option: PurchaseOption | null;
   sale_plans_ready: boolean;
   receipts: OrderReceipt[];
@@ -59,7 +61,7 @@ const ORDER_LIST_SELECT = `
   id, code, status, kind, hire_start, hire_end, hire_returned_at,
   purchase_option, sale_plan, plan_start, plan_months, plan_payment_day, plan_deposit_cents, plan_final_due, plan_confirmed_at,
   receipts:order_receipts(id,amount_cents,entry_kind,method,reference,received_on,recorded_at),
-  sold_total_cents, delivery, delivery_fee_cents,
+  sold_total_cents, delivery, delivery_fee_cents, installation_quote_cents, installation_accepted,
   charged_total_cents, payment_method, paid_at, created_at, voided_at,
   lead:leads(id, full_name, business_name, phone),
   lines:order_lines(item_id)
@@ -74,6 +76,9 @@ const ORDER_LIST_SELECT = `
  * somebody avoids.
  */
 const planSchemaMissing = (error: { message: string } | null) => Boolean(error && /purchase_option|sale_plan|plan_start|order_receipts/.test(error.message) && /does not exist|schema cache|relationship/.test(error.message));
+const chargeSchemaMissing = (error: { message: string } | null) => Boolean(error && /installation_quote_cents|installation_accepted/.test(error.message));
+const withoutCharges = (select: string) => select.replace(/(?:installation_quote_cents|installation_accepted), ?/g, "");
+const pendingCharges = { charges_ready: false, installation_quote_cents: null, installation_accepted: false };
 const legacySelect = (select: string) => select
   .replace(/purchase_option, /g, "")
   .replace(/sale_plan, plan_start, plan_months, plan_payment_day, plan_deposit_cents, plan_final_due, plan_confirmed_at,/g, "")
@@ -81,17 +86,20 @@ const legacySelect = (select: string) => select
 const pendingPlan = { purchase_option: null, sale_plans_ready: false, sale_plan: null, plan_start: null, plan_months: null, plan_payment_day: null, plan_deposit_cents: null, plan_final_due: null, plan_confirmed_at: null, receipts: [] };
 export async function listOrders(): Promise<OrderRow[]> {
   const client = await supabase();
-  const result = await client.from("orders").select(ORDER_LIST_SELECT).order("created_at", { ascending: false });
+  let result = await client.from("orders").select(String(ORDER_LIST_SELECT)).order("created_at", { ascending: false });
+  const chargesReady = !chargeSchemaMissing(result.error);
+  if (!chargesReady) result = await client.from("orders").select(withoutCharges(ORDER_LIST_SELECT)).order("created_at", { ascending: false });
   if (planSchemaMissing(result.error)) {
-    const legacy = await client.from("orders").select(legacySelect(ORDER_LIST_SELECT)).order("created_at", { ascending: false });
+    const legacy = await client.from("orders").select(legacySelect(withoutCharges(ORDER_LIST_SELECT))).order("created_at", { ascending: false });
     if (legacy.error) throw new Error(legacy.error.message);
-    return ((legacy.data ?? []) as unknown as Record<string, unknown>[]).map(row => ({ ...pendingPlan, ...row })) as unknown as OrderRow[];
+    return ((legacy.data ?? []) as unknown as Record<string, unknown>[]).map(row => ({ ...pendingCharges, ...pendingPlan, ...row })) as unknown as OrderRow[];
   }
   if (result.error) throw new Error(result.error.message);
-  return (result.data ?? []).map(row => ({ ...row, sale_plans_ready: true })) as unknown as OrderRow[];
+  return ((result.data ?? []) as unknown as Record<string, unknown>[]).map(row => ({ ...pendingCharges, ...row, sale_plans_ready: true, charges_ready: chargesReady })) as unknown as OrderRow[];
 }
 
-export type OrderDetail = SaleTerms & {
+export type OrderDetail = SaleTerms & OrderCharges & {
+  charges_ready: boolean;
   purchase_option: PurchaseOption | null;
   sale_plans_ready: boolean;
   receipts: OrderReceipt[];
@@ -142,18 +150,20 @@ export async function getOrder(id: string): Promise<OrderDetail | null> {
        purchase_option, sale_plan, plan_start, plan_months, plan_payment_day, plan_deposit_cents, plan_final_due, plan_confirmed_at,
        receipts:order_receipts(id,amount_cents,entry_kind,method,reference,received_on,recorded_at),
        lead_id, sold_total_cents, delivery, delivery_address,
-       delivery_km, delivery_km_source, delivery_fee_cents, charged_total_cents,
+       delivery_km, delivery_km_source, delivery_fee_cents, installation_quote_cents, installation_accepted, charged_total_cents,
        payment_method, payment_reference, paid_at, sold_by, notes, voided_at, void_reason,
        created_at,
        lead:leads(id, full_name, business_name, email, phone)`;
-  const result = await client.from("orders").select(select).eq("id", id).maybeSingle();
+  let result = await client.from("orders").select(select).eq("id", id).maybeSingle();
+  const chargesReady = !chargeSchemaMissing(result.error);
+  if (!chargesReady) result = await client.from("orders").select(withoutCharges(select)).eq("id", id).maybeSingle();
   if (planSchemaMissing(result.error)) {
-    const legacy = await client.from("orders").select(legacySelect(select)).eq("id", id).maybeSingle();
+    const legacy = await client.from("orders").select(legacySelect(withoutCharges(select))).eq("id", id).maybeSingle();
     if (legacy.error) throw new Error(legacy.error.message);
-    return legacy.data ? { ...pendingPlan, ...(legacy.data as unknown as Record<string, unknown>) } as unknown as OrderDetail : null;
+    return legacy.data ? { ...pendingCharges, ...pendingPlan, ...(legacy.data as unknown as Record<string, unknown>) } as unknown as OrderDetail : null;
   }
   if (result.error) throw new Error(result.error.message);
-  return result.data ? { ...result.data, sale_plans_ready: true } as unknown as OrderDetail : null;
+  return result.data ? { ...pendingCharges, ...result.data, sale_plans_ready: true, charges_ready: chargesReady } as unknown as OrderDetail : null;
 }
 
 export type OrderLineRow = {
@@ -271,6 +281,8 @@ export type OrderInvoiceRow = {
   kind: InvoiceKind;
   number: string;
   total_cents: number;
+  received_cents: number;
+  balance_cents: number;
   issued_at: string;
   supersedes: string | null;
 };
@@ -286,15 +298,18 @@ export type OrderInvoiceRow = {
  */
 export async function getOrderInvoices(orderId: string): Promise<OrderInvoiceRow[]> {
   const client = await supabase();
-  return orEmpty(
-    "orders/getOrderInvoices",
-    await client
-      .from("order_invoices")
-      .select("id, kind, number, total_cents, issued_at, supersedes")
-      .eq("order_id", orderId)
-      .order("issued_at", { ascending: false })
-      .order("number", { ascending: false })
-  ) as unknown as OrderInvoiceRow[];
+  let result = await client.from("order_invoices")
+    .select("id, kind, number, total_cents, received_cents, balance_cents, issued_at, supersedes")
+    .eq("order_id", orderId).order("issued_at", { ascending: false }).order("number", { ascending: false });
+  if (result.error && /received_cents|balance_cents/.test(result.error.message)) {
+    const legacy = await client.from("order_invoices").select("id, kind, number, total_cents, issued_at, supersedes")
+      .eq("order_id", orderId).order("issued_at", { ascending: false }).order("number", { ascending: false });
+    return orEmpty("orders/getOrderInvoices", legacy).map(row => ({ ...row,
+      received_cents: row.kind === "invoice" ? row.total_cents : 0,
+      balance_cents: row.kind === "invoice" ? 0 : row.total_cents,
+    })) as unknown as OrderInvoiceRow[];
+  }
+  return orEmpty("orders/getOrderInvoices", result) as unknown as OrderInvoiceRow[];
 }
 
 /** One document, for the PDF route. Null when RLS or the id says no. */

@@ -31,13 +31,13 @@ export default function About() {
         >
           <Subheading text="About Us" />
           <h2 className="text-2xl sm:text-3xl lg:text-5xl font-medium tracking-tight leading-tight mb-8 max-w-2xl">
-            The kitchen you wanted, at the number you actually budgeted.
+            Equip your kitchen for less
           </h2>
           <div className="flex items-center space-x-6 border-b border-white/10 pb-8 max-w-md">
             <p className="text-muted font-light text-sm leading-relaxed">
-              Every unit is stripped, rebuilt and load-tested in our Montague Gardens
-              workshop, then photographed as the one-of-one machine it is. What you see
-              listed is exactly what is standing on our floor, at the price on the card.
+              Take More Equipment sells second-hand catering equipment at affordable prices.
+              From starting a new business to upgrading your kitchen, we help you find
+              equipment that suits your needs and budget.
             </p>
           </div>
           <a href="#process" className="inline-flex items-center space-x-4 mt-8 group">

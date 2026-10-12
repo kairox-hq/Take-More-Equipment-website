@@ -1,6 +1,6 @@
 "use client";
 
-import { gradeLabel } from "@takemore/core";
+import { AVAILABILITY_LABELS, gradeLabel } from "@takemore/core";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -129,6 +129,7 @@ export default function SearchOverlay({
                       <span className="text-sm font-medium tracking-tight">
                         {priceLabel(item.price)}
                       </span>
+                      {item.availability && item.availability !== "available" && <span className="text-xs text-accent">{AVAILABILITY_LABELS[item.availability]}</span>}
                       {item.sold && (
                         <span className="text-[11px] font-light text-accent">Sold</span>
                       )}

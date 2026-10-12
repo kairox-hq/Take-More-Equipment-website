@@ -119,10 +119,11 @@ export const contact = {
       "Given by the owner on 2026-08-20 as the warehouse address customers drive to.",
     placeholder: "Montague Gardens, Cape Town",
   },
-  hours: unverified(
-    "Mon–Fri 08:00–17:00 · Sat 08:00–13:00",
-    "The hours somebody will actually be there."
-  ),
+  hours: {
+    value: "Monday to Thursday: 09:00–16:00 · Friday: 09:00–15:00 · Saturday: 10:00–13:00",
+    verified: "2026-10-08",
+    evidence: "Opening hours supplied in the approved website wording.",
+  },
   /**
    * The REGISTERED name, which is not the trading name.
    *

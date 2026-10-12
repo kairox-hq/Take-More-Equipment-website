@@ -1,5 +1,5 @@
 import "server-only";
-import { itemSegments } from "@takemore/core";
+import { itemSegments, type PublicAvailability } from "@takemore/core";
 
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@takemore/db";
@@ -85,6 +85,7 @@ type PublicItemRow = {
   retail_price_cents: number | null;
   sale_price_cents: number | null;
   sold: boolean | null;
+  availability?: PublicAvailability;
   featured: boolean | null;
   tag_slugs: string[] | null;
   published_at?: string | null;
@@ -122,10 +123,10 @@ function toEquipment(row: PublicItemRow, images: string[]): Equipment {
     tags: row.tag_slugs ?? [],
     images,
     description: row.description ?? "",
-    workshopNotes: row.workshop_notes ?? [],
     dimensionsMm: [row.width_mm ?? 0, row.depth_mm ?? 0, row.height_mm ?? 0],
     weightKg: Number(row.weight_kg ?? 0),
     sold,
+    availability: row.availability ?? "available",
     featured: row.featured ?? false,
     publishedAt: row.published_at ?? undefined,
   };
@@ -207,7 +208,7 @@ function tolerant<A extends unknown[], T>(
 }
 
 // Invalidate pre-segment projections retained by the Data Cache across deploys.
-const cachedStock = unstable_cache(fetchStock, ["stock", "segments-v1"], {
+const cachedStock = unstable_cache(fetchStock, ["stock", "segments-v1", "availability-v1"], {
   tags: [STOCK_TAG],
   revalidate: REVALIDATE_SECONDS,
 });

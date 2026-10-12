@@ -1,5 +1,13 @@
 # Take More Equipment — Platform Architecture & Build Plan
 
+> Current counter rules: reserved items remain visible and unavailable; items out on
+> hire show “Coming back soon”. Lay-by and Rental Finance items are hidden. Cancellation
+> and hire return restore eligible stock. Orders retain an immutable payment ledger;
+> accepted installation quotes affect
+> the generated total. Existing invoices receive new versions after amount or payment
+> changes, preserving earlier documents. The historical build plan below describes the
+> earlier phases; the current procedures are in `docs/runbook.md`.
+
 > Status: **approved 2026-08-04**. This is the reference document for all build sessions.
 > Phase 1 (website MVP) is the next session's scope.
 

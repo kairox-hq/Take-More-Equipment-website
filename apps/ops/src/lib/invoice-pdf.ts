@@ -2,12 +2,12 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import {
   INVOICE_HEADINGS,
-  INVOICE_STANDFIRST,
   PAYMENT_METHOD_LABELS,
+  REFUND_METHOD_LABELS,
   checkInvoiceTotals,
   formatPhone,
   invoiceAddressee,
-  rands,
+  randsExact,
   type InvoiceDocument,
   type InvoiceLine,
 } from "@takemore/core";
@@ -127,42 +127,10 @@ const safe = (value: string | null | undefined): string =>
     // Everything still outside Latin-1, dropped rather than thrown on.
     .replace(/[^\u0020-\u00ff]/g, "");
 
-/**
- * `R42 500` — or `R1 202.40`, once anything on the document has cents in it.
- *
- * rands() drops the fraction, which is right for stock priced in whole rands
- * and wrong for a hire: the daily rate is 4 % of the asking price and very
- * often carries cents, so three lines rounded to the rand did not add up to
- * the total printed under them. One decision per document rather than per
- * figure, so a column is never a mixture of R400 and R493.80.
- *
- * en-ZA's own decimal separator is a comma; the point is used here because the
- * figures sit beside a rate written "R493.80/day" in the description, and two
- * spellings of one number on one page is exactly the kind of thing a customer
- * queries.
- */
+/** Two decimal places throughout, matching the exact amounts charged. */
 type Money = (cents: number) => string;
 
-const moneyFor = (doc: InvoiceDocument): Money => {
-  const figures = [
-    doc.subtotal_cents,
-    doc.adjustment_cents,
-    doc.total_cents,
-    doc.delivery?.fee_cents ?? 0,
-    ...(doc.lines as InvoiceLine[]).flatMap((l) => [l.unit_cents, l.total_cents]),
-  ];
-  const precise = figures.some((c) => Math.abs(c) % 100 !== 0);
-
-  if (!precise) return (cents) => safe(rands(cents));
-  return (cents) => {
-    const sign = cents < 0 ? "-" : "";
-    const whole = Math.floor(Math.abs(cents) / 100).toLocaleString("en-ZA", {
-      maximumFractionDigits: 0,
-    });
-    const part = String(Math.abs(cents) % 100).padStart(2, "0");
-    return safe(`${sign}R${whole}.${part}`);
-  };
-};
+const moneyFor = (_doc: InvoiceDocument): Money => cents => safe(randsExact(cents));
 
 type Fonts = { regular: PDFFont; bold: PDFFont; mono: PDFFont };
 
@@ -451,6 +419,9 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
 
   const { issuer, customer, delivery, payment } = doc;
   const money = moneyFor(doc);
+  const received = doc.received_cents ?? (doc.kind === "invoice" ? doc.total_cents : 0);
+  const balance = doc.balance_cents ?? Math.max(0, doc.total_cents - received);
+  const refundDue = doc.refund_due_cents ?? Math.max(0, received - doc.total_cents);
 
   pdf.setTitle(`${doc.number} — ${invoiceAddressee(customer)}`);
   pdf.setAuthor(safe(issuer.legal_name));
@@ -478,7 +449,7 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
   const meta: [string, string][] = [
     ["Number", doc.number],
     ["Date", day(doc.issued_at, "Africa/Johannesburg")],
-    [doc.kind === "invoice" ? "Paid" : "Due", day(doc.due_at, "Africa/Johannesburg")],
+    [balance === 0 ? "Paid" : "Due", day(doc.due_at, "Africa/Johannesburg")],
     ["Order", doc.order_code],
   ];
 
@@ -492,7 +463,7 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
   });
 
   sheet.y += 66;
-  sheet.text(INVOICE_STANDFIRST[doc.kind], MARGIN, sheet.y, { size: 8, color: SOFT });
+  sheet.text(balance === 0 ? "Fully paid. Thank you." : received > 0 ? "Part payment received. The outstanding balance is shown below." : "This is a request for payment. No payment has been recorded.", MARGIN, sheet.y, { size: 8, color: SOFT });
   sheet.y += 18;
 
   // ── Who, and to whom ────────────────────────────────────────────────────
@@ -545,6 +516,10 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
     });
   }
 
+  for (const [description, fee] of [["Installation (accepted)", doc.charges?.installation_cents ?? 0]] as const) {
+    if (fee > 0) drawRow(sheet, money, { description, code: "", qty: 1, unit: fee, total: fee });
+  }
+
   /**
    * The hire period, on a rental. Under the machines and above the note,
    * because it is the one fact the lines were priced on — and a customer
@@ -586,7 +561,7 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
   // Up to three figure rows (14 each), the total band (26 + 44 below it) and
   // the gap above: about 130 points. Asked for more so the banking panel that
   // follows usually lands on the same page as the total it explains.
-  sheet.ensure(220);
+  sheet.ensure(260);
   sheet.y += 12;
 
   const totalsW = 240;
@@ -618,21 +593,26 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
   }
 
   if (delivery) figure("Delivery", money(delivery.fee_cents));
+  if (doc.charges?.installation_cents) figure("Installation", money(doc.charges.installation_cents));
+  figure("Total order amount", money(doc.total_cents));
+  if (doc.deposit_cents) figure("Initial payment received", money(Math.min(doc.deposit_cents, received)));
+  figure("Payments received, less refunds", money(received));
 
   sheet.y += 2;
   sheet.fill(totalsX, sheet.y, totalsW, 26, TEAL);
-  sheet.text(doc.kind === "invoice" ? "TOTAL PAID" : "TOTAL DUE", totalsX + 10, sheet.y + 9, {
+  sheet.text(balance === 0 ? "FULLY PAID" : "OUTSTANDING BALANCE", totalsX + 10, sheet.y + 9, {
     size: 9,
     font: "bold",
     color: WHITE,
   });
-  sheet.text(money(doc.total_cents), RIGHT - 10, sheet.y + 7.5, {
+  sheet.text(money(balance), RIGHT - 10, sheet.y + 7.5, {
     size: 12,
     font: "bold",
     color: WHITE,
     align: "right",
   });
   sheet.y += 44;
+  if (refundDue > 0) figure("Refund due", money(refundDue));
 
   // ── Banking, and what has already been paid ─────────────────────────────
   /**
@@ -667,6 +647,19 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Buffer> {
     );
   }
   sheet.y += blockH;
+
+  if (doc.payments?.length) {
+    sheet.y += 18; sheet.ensure(32);
+    sheet.text("PAYMENT HISTORY", MARGIN, sheet.y, { size: 8, font: "bold", color: SOFT }); sheet.y += 16;
+    for (const entry of doc.payments) {
+      const labels = entry.entry_kind === "refund" ? REFUND_METHOD_LABELS : PAYMENT_METHOD_LABELS;
+      const methodLabel = labels[entry.method as keyof typeof labels] ?? entry.method;
+      const text = `${day(entry.received_on, "UTC")} · ${entry.entry_kind === "refund" ? "Refund" : "Payment"} ${money(entry.amount_cents)} · ${methodLabel} · ${entry.reference}`;
+      const lines = sheet.wrap(text, WIDTH, 8);
+      sheet.ensure(lines.length * 12 + 4);
+      for (const line of lines) { sheet.text(line, MARGIN, sheet.y, { size: 8, color: SOFT }); sheet.y += 12; }
+    }
+  }
 
   /**
    * The footer, on every page.

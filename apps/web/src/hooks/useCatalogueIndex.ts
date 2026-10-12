@@ -15,6 +15,7 @@ export type IndexItem = {
   price: number;
   image: string | null;
   sold: boolean;
+  availability?: "available" | "reserved" | "on_hire";
   tags: string[];
 };
 

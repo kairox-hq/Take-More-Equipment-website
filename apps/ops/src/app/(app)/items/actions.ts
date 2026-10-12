@@ -52,8 +52,8 @@ async function isLive(
   client: Awaited<ReturnType<typeof supabase>>,
   id: string
 ): Promise<boolean> {
-  const { data } = await client.from("items").select("published_at").eq("id", id).maybeSingle();
-  return !!data?.published_at;
+  const { data } = await client.from("items").select("published_at,website_availability").eq("id", id).maybeSingle();
+  return !!data?.published_at && data.website_availability !== "hidden";
 }
 
 export async function createDraft(_previous: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
@@ -120,7 +120,7 @@ export async function updateItem(id: string, patch: ItemPatch): Promise<ActionRe
     .from("items")
     .update({ ...fields, ...(specs ? { specs } : {}) })
     .eq("id", id)
-    .select("published_at")
+    .select("published_at,website_availability")
     .single();
   if (error) return { ok: false, error: humanise(error.message) };
 
@@ -168,10 +168,10 @@ export async function setStage(id: string, status: ItemStatus): Promise<ActionRe
   // site. This is what the notice is written from.
   const { data: before } = await client
     .from("items")
-    .select("published_at")
+    .select("published_at,website_availability")
     .eq("id", id)
     .maybeSingle();
-  const wasLive = !!before?.published_at;
+  const wasLive = !!before?.published_at && before.website_availability !== "hidden";
 
   // The write returns the row it wrote, so the state AFTER the status trigger
   // has run comes back in the same round trip rather than a second one.
@@ -179,14 +179,14 @@ export async function setStage(id: string, status: ItemStatus): Promise<ActionRe
     .from("items")
     .update({ status })
     .eq("id", id)
-    .select("published_at")
+    .select("published_at,website_availability")
     .maybeSingle();
   if (error) return { ok: false, error: humanise(error.message) };
-  const isLive = !!after?.published_at;
+  const isLive = !!after?.published_at && after.website_availability !== "hidden";
 
   let notice: string | undefined;
 
-  if (stage.live && !isLive) {
+  if (stage.live && !isLive && after?.website_availability !== "hidden") {
     const { error: publishError } = await client
       .from("items")
       .update({ published_at: new Date().toISOString() })
@@ -209,6 +209,9 @@ export async function setStage(id: string, status: ItemStatus): Promise<ActionRe
       ? `Moved to ${stage.label}, but it could not be taken off the website: ${humanise(hideError.message)}`
       : `${stage.label} — taken off the website.`;
   }
+
+  if (after?.website_availability === "hidden" && status === "reserved") notice = "Held on lay-by or Rental Finance — hidden from the website.";
+  else if (status === "reserved" && isLive) notice = after?.website_availability === "on_hire" ? "Coming back soon — visible, unavailable to buy." : "Reserved — visible, unavailable to buy.";
 
   // A machine that has just gone on sale is the moment to check who has been
   // waiting for one. Best effort and after the fact: matching is a suggestion,
@@ -403,7 +406,7 @@ export async function deleteMedia(itemId: string, mediaId: string): Promise<Acti
       .eq("id", mediaId)
       .eq("item_id", itemId)
       .maybeSingle(),
-    client.from("items").select("published_at").eq("id", itemId).maybeSingle(),
+    client.from("items").select("published_at,website_availability").eq("id", itemId).maybeSingle(),
     client
       .from("item_media")
       .select("id", { count: "exact", head: true })

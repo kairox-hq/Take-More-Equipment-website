@@ -2,7 +2,7 @@
 export const CONDITION_GRADES = ["N", "A", "B", "C"] as const;
 export type ConditionGrade = (typeof CONDITION_GRADES)[number];
 export const GRADE_LABELS: Record<ConditionGrade, string> = {
-  N: "New", A: "Like New", B: "Good", C: "Fair",
+  N: "New", A: "Like New", B: "Used", C: "Fair",
 };
 export const gradeLabel = (grade: string | null | undefined) => GRADE_LABELS[grade as ConditionGrade] ?? "Not assessed";
 export const GRADE_GUIDANCE: Record<ConditionGrade, string> = {

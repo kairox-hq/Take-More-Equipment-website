@@ -1,6 +1,6 @@
 import BrowseMore from "@/components/BrowseMore";
 
-import { gradeLabel } from "@takemore/core";
+import { AVAILABILITY_LABELS, gradeLabel } from "@takemore/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -77,6 +77,7 @@ export default async function ProductPage({
   if (!item) notFound();
 
   // Null rather than "Save -20%" when the retail anchor sits below our own ask.
+  const unavailable = item.sold || (item.availability ?? "available") !== "available";
   const saving = savingPercent(item.price, item.retailPrice);
   const delivery = deliveryFor(item);
   const formEnabled = enquiryFormEnabled();
@@ -103,7 +104,7 @@ export default async function ProductPage({
       priceCurrency: "ZAR",
       ...(item.price > 0 ? { price: item.price } : {}),
       itemCondition: "https://schema.org/RefurbishedCondition",
-      availability: item.sold ? "https://schema.org/SoldOut" : "https://schema.org/InStock",
+      availability: unavailable ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       seller: { "@type": "Organization", name: site.legalName },
     },
   };
@@ -201,6 +202,7 @@ export default async function ProductPage({
               {item.description}
             </p>
 
+            {item.availability && item.availability !== "available" && <p role="status" className="text-accent text-sm mb-5">{AVAILABILITY_LABELS[item.availability]}. This item cannot be bought at the moment.</p>}
             {/* Price block */}
             <div className="bg-card rounded-[2rem] border border-border p-5 sm:p-6 md:p-8 mb-4 sm:mb-6">
               <div className="flex items-end justify-between gap-6 flex-wrap">
@@ -244,7 +246,7 @@ export default async function ProductPage({
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-between gap-3 bg-accent text-background rounded-2xl px-6 py-4 hover:opacity-90 transition-opacity"
                   >
-                    <span className="text-sm font-medium">Enquire on WhatsApp</span>
+                    <span className="text-sm font-medium">{unavailable ? "Ask about availability" : "Enquire on WhatsApp"}</span>
                     <iconify-icon icon="solar:chat-round-line-linear" width="18" height="18"></iconify-icon>
                   </a>
                 )}
@@ -262,11 +264,9 @@ export default async function ProductPage({
                 </a>
               </div>
 
-              {!item.sold && (
+              {!unavailable && (
                 <p className="text-xs font-light text-muted mt-5">
-                  Come and watch it run in Montague Gardens before you pay a cent. One of
-                  one — when it goes, it goes, and we hold a unit for 24 hours on a
-                  deposit.
+                  View the item at our warehouse before buying. A 50% deposit holds an item for seven days, subject to the agreed reservation period.
                 </p>
               )}
             </div>
@@ -280,8 +280,8 @@ export default async function ProductPage({
               />
               <InfoCard
                 icon="solar:map-point-linear"
-                title="See it in person"
-                copy="Visit our Montague Gardens warehouse to inspect the item and ask your questions before choosing."
+                title={item.availability === "on_hire" ? "View when it returns" : "See it in person"}
+                copy={item.availability === "on_hire" ? "Contact our team to arrange a viewing once the equipment returns to our warehouse." : "Visit our Montague Gardens warehouse to inspect the item and ask your questions before choosing."}
               />
             </div>
 
@@ -304,7 +304,7 @@ export default async function ProductPage({
           </div>
         </div>
 
-        {/* Specs + workshop notes */}
+        {/* Product specifications and purchase arrangements */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 lg:gap-16 mt-16 md:mt-24">
           <section>
             <Subheading text="Specification" />
@@ -325,30 +325,12 @@ export default async function ProductPage({
           </section>
 
           <section>
-            <Subheading text="Workshop Report" />
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-8">
-              What we replaced
-            </h2>
-            <ul className="flex flex-col gap-4">
-              {item.workshopNotes.map((note) => (
-                <li key={note} className="flex items-start gap-4">
-                  <span className="w-6 h-6 rounded-lg bg-card border border-border flex items-center justify-center text-accent shrink-0 mt-0.5">
-                    <iconify-icon icon="solar:check-read-linear" width="12" height="12"></iconify-icon>
-                  </span>
-                  <span className="text-sm font-light text-muted leading-relaxed">
-                    {note}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-8 pt-8 border-t border-border">
-              <p className="text-sm font-light text-muted leading-relaxed">
-                Every unit is load-tested through a full service cycle before it is graded
-                and listed.{" "}
-                <Link href="/conditions" className="text-white hover:text-accent transition-colors">
-                  How we grade condition →
-                </Link>
-              </p>
+            <Subheading text="Before You Buy" />
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-medium tracking-tight mb-6">Collection &amp; delivery</h2>
+            <p className="text-sm text-muted font-light leading-relaxed mb-6">Read our policy before purchasing or arranging transport. Check measurements, access and any connection requirements with our team.</p>
+            <div className="flex flex-col gap-4 text-sm text-accent">
+              <Link href="/before-you-buy">Before you buy — collection &amp; delivery →</Link>
+              <Link href="/conditions">Our condition guide →</Link>
             </div>
           </section>
         </div>

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { supabase, requireStaff } from "@/lib/supabase";
 import { createAdminClient } from "@takemore/db/admin";
 import { revalidateStorefront } from "@/lib/storefront";
-import { normalisePhone, type ItemStatus, type OrderKind, type PaymentMethod } from "@takemore/core";
+import { CUSTOMER_SOURCES, normalisePhone, type LeadSource, type RefundMethod, type ItemStatus, type OrderKind, type PaymentMethod } from "@takemore/core";
 import { issuerFromEnv } from "@/lib/invoice";
 import { setStage } from "../items/actions";
 
@@ -84,6 +84,19 @@ async function revalidateSale(orderId: string, itemIds: string[] = []) {
   for (const id of itemIds) revalidatePath(`/items/${id}`);
 }
 
+/** Payment and pricing writes succeed even if invoicing is not configured yet. */
+async function refreshInvoice(orderId: string): Promise<string | undefined> {
+  const issuer = issuerFromEnv();
+  if (!issuer.ok) return "Saved. Invoice update is unavailable: " + issuer.error;
+  const client = await supabase();
+  const { data: order } = await client.from("orders").select("status,lead_id,purchase_option,kind,hire_start,hire_end,receipts:order_receipts(amount_cents,entry_kind),lines:order_lines(id)").eq("id", orderId).maybeSingle();
+  if (!order || !order.lead_id || !order.lines?.length || !order.purchase_option || order.status === "void" || (order.kind === "hire" && (!order.hire_start || !order.hire_end))) return;
+  const received = (order.receipts ?? []).reduce((sum, receipt) => sum + (receipt.entry_kind === "refund" ? -receipt.amount_cents : receipt.amount_cents), 0);
+  const { error } = await client.rpc("issue_invoice", { p_order_id: orderId,
+    p_kind: order.status === "paid" || received > 0 ? "invoice" : "proforma", p_issuer: issuer.issuer });
+  if (error) return "Saved. The invoice could not update: " + humanise(error.message);
+}
+
 // ---------------------------------------------------------------------------
 // Opening one
 // ---------------------------------------------------------------------------
@@ -155,11 +168,12 @@ export async function setOrderCustomer(
  */
 export async function createOrderCustomer(
   orderId: string,
-  input: { full_name: string; phone: string; email: string; business_name: string }
+  input: { full_name: string; phone: string; email: string; business_name: string; source: LeadSource }
 ): Promise<ActionResult> {
   const staff = await requireStaff();
   const client = await supabase();
 
+  if (!CUSTOMER_SOURCES.some(source => source === input.source)) return { ok: false, error: "Choose how the customer reached us." };
   const clean = (value: string) => value.trim() || null;
   const email = clean(input.email);
   const phone = clean(input.phone);
@@ -171,7 +185,7 @@ export async function createOrderCustomer(
       email,
       phone,
       business_name: clean(input.business_name),
-      source: "walk_in",
+      source: input.source,
       created_by: staff.userId,
     })
     .select("id")
@@ -325,6 +339,18 @@ export async function setDelivery(
   return { ok: true };
 }
 
+export async function setInstallation(orderId: string, input: { quote: number | null; accepted: boolean }): Promise<ActionResult> {
+  await requireStaff();
+  if (input.quote != null && (!Number.isSafeInteger(input.quote) || input.quote < 0)) return { ok: false, error: "Enter a valid non-negative installation quote." };
+  if (input.accepted && input.quote == null) return { ok: false, error: "Enter the installation quote before accepting it." };
+  const client = await supabase();
+  const { error } = await client.rpc("set_order_installation", { p_order_id: orderId, p_quote: input.quote, p_accepted: input.accepted });
+  if (error) return { ok: false, error: humanise(error.message) };
+  const invoiceNote = await refreshInvoice(orderId);
+  await revalidateSale(orderId);
+  return { ok: true, notice: invoiceNote || "Installation saved. Total and balance updated." };
+}
+
 /**
  * When the machines go out and when they come back. Calendar days as
  * `2026-09-01` strings, straight from the date inputs — never a Date object,
@@ -346,8 +372,9 @@ export async function setHireDates(
     .eq("id", orderId);
 
   if (error) return { ok: false, error: humanise(error.message) };
+  const invoiceNote = await refreshInvoice(orderId);
   revalidatePath(`/orders/${orderId}`);
-  return { ok: true };
+  return { ok: true, notice: invoiceNote };
 }
 
 export async function setOrderNotes(orderId: string, notes: string): Promise<ActionResult> {
@@ -385,8 +412,9 @@ export async function setProvisionalTotal(
     .eq("id", orderId);
 
   if (error) return { ok: false, error: humanise(error.message) };
+  const invoiceNote = await refreshInvoice(orderId);
   revalidatePath(`/orders/${orderId}`);
-  return { ok: true };
+  return { ok: true, notice: invoiceNote };
 }
 
 // ---------------------------------------------------------------------------
@@ -420,7 +448,8 @@ export async function confirmPaid(
   for (const id of items) await revalidateStorefront(id);
   await revalidateSale(orderId, items);
 
-  return { ok: true, notice: `${result?.code ?? "The order"} is paid.` };
+  const invoiceNote = await refreshInvoice(orderId);
+  return { ok: true, notice: invoiceNote || `${result?.code ?? "The order"} is paid.` };
 }
 
 /**
@@ -450,7 +479,9 @@ export async function confirmHirePaid(
   const result = data as { code?: string; items?: string[]; days?: number } | null;
   await revalidateSale(orderId, result?.items ?? []);
 
-  return { ok: true, notice: `${result?.code ?? "The rental"} is paid.` };
+  for (const id of result?.items ?? []) await revalidateStorefront(id);
+  const invoiceNote = await refreshInvoice(orderId);
+  return { ok: true, notice: invoiceNote || `${result?.code ?? "The rental"} is paid.` };
 }
 
 /**
@@ -742,7 +773,9 @@ export async function issueInvoice(orderId: string): Promise<
   if (readError) return { ok: false, error: humanise(readError.message) };
   if (!order) return { ok: false, error: "That order is not there any more." };
 
-  const kind = order.status === "paid" ? "invoice" : "proforma";
+  const { data: receipts } = await client.from("order_receipts").select("amount_cents,entry_kind").eq("order_id", orderId);
+  const received = (receipts ?? []).reduce((sum, r) => sum + (r.entry_kind === "refund" ? -r.amount_cents : r.amount_cents), 0);
+  const kind = order.status === "paid" || received > 0 ? "invoice" : "proforma";
 
   // The staff client, not the admin one. issue_invoice() is SECURITY DEFINER
   // and checks app.is_staff() itself; going round RLS to call it would only
@@ -788,12 +821,13 @@ export async function saveSalePlan(orderId: string, input: {
     p_months: input.months, p_day: input.day, p_deposit: input.deposit, p_due: input.due,
   });
   if (error) return { ok: false, error: humanise(error.message) };
+  const invoiceNote = await refreshInvoice(orderId);
   await revalidateSale(orderId);
-  return { ok: true, notice: "Sale terms saved." };
+  return { ok: true, notice: invoiceNote || "Sale terms saved." };
 }
 
 export async function recordReceipt(orderId: string, input: {
-  amount: number; method: PaymentMethod; reference: string; date: string; requestId: string; refund: boolean;
+  amount: number; method: PaymentMethod | RefundMethod; reference: string; date: string; requestId: string; refund: boolean;
 }): Promise<ActionResult> {
   await requireStaff();
   const client = await supabase();
@@ -805,7 +839,8 @@ export async function recordReceipt(orderId: string, input: {
   const items = (data as { items?: string[] } | null)?.items ?? [];
   for (const id of items) await revalidateStorefront(id);
   await revalidateSale(orderId, items);
-  return { ok: true, notice: input.refund ? "Refund recorded." : "Payment recorded. Balance updated." };
+  const invoiceNote = await refreshInvoice(orderId);
+  return { ok: true, notice: invoiceNote || (input.refund ? "Refund recorded." : "Payment recorded. Balance updated.") };
 }
 
 /** Choose the agreement before confirming any money. Stock holds stay in place. */
@@ -814,7 +849,9 @@ export async function choosePurchaseOption(orderId: string, option: import('@tak
   const client = await supabase();
   const { error } = await client.rpc('choose_purchase_option', { p_order_id: orderId, p_option: option });
   if (error) return { ok: false, error: humanise(error.message) };
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath('/orders');
+  const { data: lines } = await client.from("order_lines").select("item_id").eq("order_id", orderId);
+  for (const line of lines ?? []) await revalidateStorefront(line.item_id);
+  await refreshInvoice(orderId);
+  await revalidateSale(orderId, (lines ?? []).map(line => line.item_id));
   return { ok: true };
 }

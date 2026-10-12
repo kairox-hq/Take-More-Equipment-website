@@ -10,13 +10,15 @@ import {
   PURCHASE_OPTION_LABELS,
   purchaseOption,
   ORDER_STATUS_LABELS,
+  orderChargesCents,
+  planBalance,
   allocateSoldTotal,
   canReopenSale,
   canSeeCosts,
   hireDailyRateCents,
   hireDays,
   hireFeeCents,
-  rands,
+  randsExact as rands,
   type AppRole,
   type PurchaseOption,
   type OrderStatus,
@@ -32,9 +34,11 @@ import type {
 import CustomerPicker from "./CustomerPicker";
 import ProductPicker from "./ProductPicker";
 import DeliveryPanel from "./DeliveryPanel";
+import InstallationPanel from "./InstallationPanel";
 import HirePanel from "./HirePanel";
 import SalePlanPanel from "./SalePlanPanel";
 import PaymentPanel from "./PaymentPanel";
+import PaymentLedger from "./PaymentLedger";
 import NotesPanel from "./NotesPanel";
 import InvoicePanel from "./InvoicePanel";
 import { removeLine, choosePurchaseOption, discardOrder } from "../actions";
@@ -78,8 +82,7 @@ export default function OrderScreen({
 }) {
   const router = useRouter();
   /**
-   * `isPending` is the gap between an action finishing and the refreshed page
-   * arriving. Every control below is disabled across it — otherwise the trash
+   * Keep controls disabled while action feedback and the updated page settle — otherwise the trash
    * button re-enables on stale data and a second tap acts on an order the
    * screen no longer describes.
    */
@@ -90,6 +93,7 @@ export default function OrderScreen({
   const [switching, setSwitching] = useState(false);
   /** Hire dates typed but not yet saved. The pay button waits for them. */
   const [planDirty, setPlanDirty] = useState(false);
+  const [chargesDirty, setChargesDirty] = useState(false);
   const [hireDirty, setHireDirty] = useState(false);
 
   /**
@@ -128,6 +132,8 @@ export default function OrderScreen({
   const costByItem = new Map(lineCosts.map((c) => [c.item_id, c]));
 
   const listTotal = lines.reduce((sum, line) => sum + line.list_price_cents, 0);
+  const chargedTotal = (hire && order.status === "draft" ? hireTotal : order.sold_total_cents ?? listTotal) + orderChargesCents(order);
+  const balance = planBalance(order, chargedTotal, order.receipts);
   const retailTotal = lines.reduce((sum, line) => sum + (line.retail_price_cents ?? 0), 0);
   const costTotal = showCosts ? (economics?.cost_total_cents ?? 0) : null;
 
@@ -149,9 +155,12 @@ export default function OrderScreen({
       : null;
 
   const handled = (result: { ok: boolean; message?: string }) => {
-    setError(result.ok ? null : (result.message ?? "That did not work."));
-    setNotice(result.ok ? (result.message ?? null) : null);
-    startTransition(() => router.refresh());
+    // Each action revalidates this route and returns its updated server payload.
+    // A second refresh can abort that response while its transition is pending.
+    startTransition(() => {
+      setError(result.ok ? null : (result.message ?? "That did not work."));
+      setNotice(result.ok ? (result.message ?? null) : null);
+    });
   };
 
   const option = purchaseOption(order);
@@ -213,7 +222,7 @@ export default function OrderScreen({
           <span
             className={`px-2.5 py-1 rounded-full text-[11px] font-light border ${STATUS_CHROME[order.status]}`}
           >
-            {ORDER_STATUS_LABELS[order.status]}
+            {order.status === "paid" && order.charges_ready && balance.balance > 0 ? "Balance due" : ORDER_STATUS_LABELS[order.status]}
           </span>
         </div>
       </header>
@@ -372,7 +381,7 @@ export default function OrderScreen({
         {option === 'payjustnow' && <p className="mt-3 text-xs text-muted">Record the payment received from PayJustNow. Customer instalments are handled by the provider.</p>}
       </Panel>
 
-      {!hire && option && option !== 'immediate' && option !== 'payjustnow' && <SalePlanPanel key={`${order.id}-${order.plan_confirmed_at ?? order.sale_plan}`} order={order} listTotal={listTotal} financeInitialPercent={financeInitialPercent} busy={busy} onDone={handled} onDirty={setPlanDirty} />}
+      {!hire && option && option !== 'immediate' && option !== 'payjustnow' && <SalePlanPanel key={`${order.id}-${order.plan_confirmed_at ?? order.sale_plan}`} order={order} listTotal={listTotal} financeInitialPercent={financeInitialPercent} busy={busy || chargesDirty} onDone={handled} onDirty={setPlanDirty} />}
 
       {hire && (
         <HirePanel
@@ -386,6 +395,7 @@ export default function OrderScreen({
       )}
 
       <DeliveryPanel order={order} locked={order.status !== "draft"} busy={busy} onDone={handled} />
+      {option === "asset_finance" && <InstallationPanel key={`${order.id}-${order.installation_quote_cents}-${order.installation_accepted}`} order={order} busy={busy} onDirty={setChargesDirty} onDone={handled} />}
 
       {/* Above the payment, because it is written DURING the conversation —
           "collecting on Saturday", "hire back on the 17th" — and below it is
@@ -415,11 +425,14 @@ export default function OrderScreen({
               }
             : null
         }
-        busy={busy || planDirty}
+        busy={busy || planDirty || chargesDirty}
         track={track}
         beforeConfirm={flush}
         onDone={handled}
       />}
+
+      {(hire || option === "immediate" || option === "payjustnow") && order.charges_ready && (order.status !== "draft" || order.receipts.length > 0) &&
+        <PaymentLedger order={order} totalCents={chargedTotal} busy={busy || chargesDirty} onDone={handled} />}
 
       {!locked && !order.sold_by && option !== 'immediate' && option !== 'payjustnow' && option !== 'hire' && <Button variant="danger" disabled={busy} onClick={() => void discard()}>Discard draft &amp; release items</Button>}
 
@@ -434,9 +447,9 @@ export default function OrderScreen({
         // The order's own generated total, not one added up here. It is what
         // the panel compares an issued invoice against to notice that the sale
         // has been corrected since the customer was given one.
-        chargedTotalCents={order.charged_total_cents ?? 0}
+        chargedTotalCents={chargedTotal}
         configured={invoicing}
-        busy={busy}
+        busy={busy || chargesDirty || hireDirty || planDirty}
         onDone={handled}
       />
 

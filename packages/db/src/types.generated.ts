@@ -435,6 +435,7 @@ export type Database = {
           updated_at: string
           weight_kg: number | null
           width_mm: number | null
+          website_availability: string
           workshop_notes: string[]
         }
         Insert: {
@@ -471,6 +472,7 @@ export type Database = {
           updated_at?: string
           weight_kg?: number | null
           width_mm?: number | null
+          website_availability?: string
           workshop_notes?: string[]
         }
         Update: {
@@ -507,6 +509,7 @@ export type Database = {
           updated_at?: string
           weight_kg?: number | null
           width_mm?: number | null
+          website_availability?: string
           workshop_notes?: string[]
         }
         Relationships: [
@@ -904,6 +907,8 @@ export type Database = {
       }
       order_invoices: {
         Row: {
+          received_cents: number
+          balance_cents: number
           document: Json
           id: string
           issued_at: string
@@ -1043,8 +1048,8 @@ export type Database = {
         ]
       }
       order_receipts: {
-        Row: { id: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at: string; recorded_by: string; request_id: string }
-        Insert: { id?: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at?: string; recorded_by: string; request_id: string }
+        Row: { id: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at: string; recorded_by: string | null; request_id: string }
+        Insert: { id?: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at?: string; recorded_by: string | null; request_id: string }
         Update: { amount_cents?: number }
         Relationships: [{ foreignKeyName: "order_receipts_order_id_fkey"; columns: ["order_id"]; isOneToOne: false; referencedRelation: "orders"; referencedColumns: ["id"] }]
       }
@@ -1064,6 +1069,8 @@ export type Database = {
           created_by: string | null
           delivery: boolean
           delivery_address: string | null
+          installation_quote_cents: number | null
+          installation_accepted: boolean
           delivery_fee_cents: number
           delivery_km: number | null
           delivery_km_source: string | null
@@ -1099,6 +1106,8 @@ export type Database = {
           created_by?: string | null
           delivery?: boolean
           delivery_address?: string | null
+          installation_quote_cents?: number | null
+          installation_accepted?: boolean
           delivery_fee_cents?: number
           delivery_km?: number | null
           delivery_km_source?: string | null
@@ -1134,6 +1143,8 @@ export type Database = {
           created_by?: string | null
           delivery?: boolean
           delivery_address?: string | null
+          installation_quote_cents?: number | null
+          installation_accepted?: boolean
           delivery_fee_cents?: number
           delivery_km?: number | null
           delivery_km_source?: string | null
@@ -1794,6 +1805,7 @@ export type Database = {
     Functions: {
       choose_purchase_option: { Args: { p_order_id: string; p_option: string }; Returns: undefined }
       save_sale_plan: { Args: { p_order_id: string; p_plan: string; p_total?: number; p_start?: string; p_months?: number; p_day?: number; p_deposit?: number; p_due?: string }; Returns: undefined }
+      set_order_installation: { Args: { p_order_id: string; p_quote?: number | null; p_accepted?: boolean }; Returns: undefined }
       record_order_receipt: { Args: { p_order_id: string; p_amount: number; p_method: Database["public"]["Enums"]["payment_method"]; p_reference: string; p_date: string; p_request_id: string; p_refund?: boolean }; Returns: Json }
 
       add_order_line: {
@@ -1985,12 +1997,16 @@ export type Database = {
         | "referral"
         | "auction"
         | "import"
+        | "marketplace"
+        | "social_media"
+        | "google"
+        | "website"
       lead_status: "new" | "working" | "customer" | "dormant"
       media_kind: "photo" | "video"
       order_status: "draft" | "paid" | "void"
       outreach_channel: "email" | "whatsapp"
       outreach_state: "queued" | "sent" | "skipped" | "failed"
-      payment_method: "card_machine" | "bank_transfer" | "payjustnow"
+      payment_method: "card_machine" | "bank_transfer" | "payjustnow" | "cash"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2169,13 +2185,17 @@ export const Constants = {
         "referral",
         "auction",
         "import",
+        "marketplace",
+        "social_media",
+        "google",
+        "website",
       ],
       lead_status: ["new", "working", "customer", "dormant"],
       media_kind: ["photo", "video"],
       order_status: ["draft", "paid", "void"],
       outreach_channel: ["email", "whatsapp"],
       outreach_state: ["queued", "sent", "skipped", "failed"],
-      payment_method: ["card_machine", "bank_transfer", "payjustnow"],
+      payment_method: ["card_machine", "bank_transfer", "payjustnow", "cash"],
     },
   },
 } as const

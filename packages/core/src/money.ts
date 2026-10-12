@@ -50,3 +50,8 @@ export const savingPercent = (
 /** Payment records retain cents; catalogue display may still use whole rands. */
 export const paymentAmount = (cents: Cents): string =>
   `R${centsToRands(cents).toLocaleString("en-ZA", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+
+/** Rates and order totals must display the same cents that are charged. */
+const exactRands = new Intl.NumberFormat("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const randsExact = (cents: Cents): string =>
+  `R${exactRands.formatToParts(centsToRands(cents)).map(part => part.type === "decimal" ? "." : part.value).join("")}`;

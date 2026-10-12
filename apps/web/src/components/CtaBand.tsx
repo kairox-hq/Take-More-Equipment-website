@@ -31,10 +31,10 @@ export default function CtaBand({
           <div className="max-w-2xl">
             <Subheading text="Looking For Something Specific?" />
             <h2 className="text-2xl sm:text-3xl lg:text-5xl font-medium tracking-tight leading-tight mb-6">
-              {homestaging ? "Looking for the piece that finishes your room?" : "Most of our stock sells before it reaches this page."}
+              {homestaging ? "Looking for the piece that finishes your room?" : "Looking for something specific?"}
             </h2>
             <p className="text-muted font-light text-sm leading-relaxed max-w-lg mb-8">
-              {homestaging ? "Tell us about the furniture or home piece you need, your space and your budget. If we do not have it, we can keep an eye out." : "Tell us the machine and the number you have to hit. If it is not on the floor this week, we will find it, rebuild it, and send you photos and a price before it goes anywhere near this page."}
+              {homestaging ? "Tell us about the furniture or home item you’re looking for, your space and your budget. If we don’t have it in stock, we’ll keep an eye out and let you know when something suitable becomes available." : "Tell us what equipment you’re looking for and your budget. If we don’t have it in stock, we’ll look for it and let you know when it becomes available, with photos and prices."}
             </p>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 shrink-0">

@@ -149,9 +149,9 @@ export default function Hero() {
               transition={{ delay: 0.6 }}
               className="hidden md:block absolute left-1/2 top-0 -translate-x-1/2 text-center max-w-[200px]"
             >
-              {home ? "Furniture with character." : "Rebuilt in our workshop."}
+              {home ? "Furniture with character." : "Quality equipment."}
               <br />
-              {home ? "Find your next great piece." : "Tested before you choose."}
+              {home ? "Find your next great piece." : "Great prices."}
             </motion.div>
             <motion.div
               initial={{ opacity: 0 }}

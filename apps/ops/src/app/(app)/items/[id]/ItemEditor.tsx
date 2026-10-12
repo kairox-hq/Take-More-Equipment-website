@@ -128,10 +128,12 @@ export default function ItemEditor({
 
   const [listPrice, setListPrice] = useState<number | null>(item.list_price_cents ?? null);
   const [retailPrice, setRetailPrice] = useState<number | null>(item.retail_price_cents ?? null);
-  const [notes, setNotes] = useState<string[]>(item.workshop_notes ?? []);
+  const publiclyVisible = Boolean(item.published_at && item.website_availability !== "hidden");
   const [selectedTags, setSelectedTags] = useState<string[]>(
     (item.tags ?? []).map((t: any) => t.tag_id)
   );
+  const tagSaveInFlight = useRef(false);
+  const [savingTags, setSavingTags] = useState(false);
   const [mediaCount, setMediaCount] = useState((item.media ?? []).length);
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -326,15 +328,19 @@ export default function ItemEditor({
    * connection left a chip lit for a tag that was never saved.
    */
   async function onToggleTag(id: string) {
+    if (tagSaveInFlight.current) return;
+    tagSaveInFlight.current = true;
+    setSavingTags(true);
     const previous = selectedTags;
     const next = previous.includes(id) ? previous.filter((t) => t !== id) : [...previous, id];
     setSelectedTags(next);
     setError(null);
-    const result = await setTags(item.id, next);
-    if (!result.ok) {
-      setSelectedTags(previous);
-      setError(result.error);
-    }
+    try {
+      const result = await setTags(item.id, next);
+      if (!result.ok) { setSelectedTags(previous); setError(result.error); }
+    } catch {
+      setSelectedTags(previous); setError("Could not save the tags. Please try again.");
+    } finally { tagSaveInFlight.current = false; setSavingTags(false); }
   }
 
   return (
@@ -371,7 +377,7 @@ export default function ItemEditor({
         </div>
         <div className="flex items-center gap-2">
           <StatusPill status={item.status} />
-          <PublishPill publishedAt={item.published_at} />
+          <PublishPill publishedAt={publiclyVisible ? item.published_at : null} />
           <span
             className={`text-[11px] font-light transition-opacity ${
               saveState === "idle" ? "opacity-0" : "opacity-100"
@@ -569,10 +575,11 @@ export default function ItemEditor({
             />
           </Field>
 
-          <Field label="Tags">
+          <Field label="Tags" hint="Tap a selected tag to remove it.">
             <ChipGroup
               options={tags.map((t) => ({ value: t.id, label: t.name }))}
               selected={selectedTags}
+              disabled={savingTags}
               onToggle={onToggleTag}
             />
           </Field>
@@ -654,43 +661,6 @@ export default function ItemEditor({
         />
       )}
 
-      <Panel
-        title="Workshop report"
-        subtitle="What was actually replaced. This is the proof behind the grade, and it renders on the public page."
-      >
-        <div className="space-y-2">
-          {notes.map((note, index) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                value={note}
-                onChange={(e) => {
-                  const next = [...notes];
-                  next[index] = e.target.value;
-                  setNotes(next);
-                }}
-                onBlur={() => save({ workshop_notes: notes.filter((n) => n.trim()) })}
-                placeholder="Door gasket and hinge springs replaced"
-              />
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const next = notes.filter((_, i) => i !== index);
-                  setNotes(next);
-                  save({ workshop_notes: next.filter((n) => n.trim()) });
-                }}
-                className="shrink-0 px-3"
-              >
-                <iconify-icon icon="solar:trash-bin-trash-linear" width="16" height="16" noobserver="" />
-              </Button>
-            </div>
-          ))}
-          <Button variant="secondary" onClick={() => setNotes([...notes, ""])}>
-            <iconify-icon icon="solar:add-circle-linear" width="16" height="16" noobserver="" />
-            Add a line
-          </Button>
-        </div>
-      </Panel>
-
       {/* All four stages, always on screen, current one lit. Nothing is hidden
           behind "what can I do from here" — the answer is always "any of them",
           so the buttons are a picker rather than a list of moves. Tapping the
@@ -754,15 +724,16 @@ export default function ItemEditor({
       <Panel
         title="The website"
         subtitle={
-          item.published_at
-            ? "Live now. Move it to the workshop, Reserved or Sold to take it down."
+          publiclyVisible
+            ? item.website_availability === "on_hire" ? "Visible as Coming back soon. Unavailable to buy until it returns." : item.status === "reserved" ? "Visible as Reserved. Unavailable to buy." : "Live now. Move it to the workshop or Sold to take it down."
+            : item.website_availability === "hidden" && item.status === "reserved" ? "Held on lay-by or Rental Finance — hidden from the website."
             : liveStage
               ? "Not live yet — it needs the rest of this list, then tap its stage again."
               : "Off the site, because of the stage it is in."
         }
       >
         <div className="space-y-4">
-          {!item.published_at && liveStage && (
+          {!item.published_at && liveStage && item.website_availability !== "hidden" && (
             <ul className="space-y-1.5">
               {checklist.map((req) => (
                 <li key={req.id} className="flex items-center gap-2 text-sm font-light">
@@ -784,7 +755,7 @@ export default function ItemEditor({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {item.published_at && (
+            {publiclyVisible && (
               <a
                 href={`${storefrontUrl}/stock/${item.slug}`}
                 target="_blank"
@@ -845,7 +816,7 @@ export default function ItemEditor({
       <DeleteItem
         id={item.id}
         title={form.title}
-        live={!!item.published_at}
+        live={publiclyVisible}
         onOrder={item.status === "reserved" || item.status === "sold"}
         /* Whether this is a draft nobody ever filled in — which decides
            whether deleting keeps a record or keeps nothing at all. The action

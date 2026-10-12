@@ -81,6 +81,7 @@ export const productEnquiry = (item: {
   slug: string;
   price?: number;
   sold?: boolean;
+  availability?: "available" | "reserved" | "on_hire";
 }): string => {
   const name = [item.brand, item.title].filter(Boolean).join(" ");
   const headline = item.sku ? `${item.sku} — ${name}` : name;
@@ -89,6 +90,8 @@ export const productEnquiry = (item: {
       ? `\nR${item.price.toLocaleString("en-ZA")}`
       : "";
 
+  if (item.availability === "on_hire") return `Hi Take More, this item is on hire:\n\n${headline}\n${productUrl(item.slug)}\n\nPlease let me know when it is available again.`;
+  if (item.availability === "reserved") return `Hi Take More, this item is reserved:\n\n${headline}\n${productUrl(item.slug)}\n\nPlease let me know if it becomes available again.`;
   return item.sold
     ? `Hi Take More, this one has sold:\n\n${headline}\n${productUrl(item.slug)}\n\nCan you watch for another one like it?`
     : `Hi Take More, I'm interested in this:\n\n${headline}${price}\n${productUrl(item.slug)}\n\nIs it still available?`;

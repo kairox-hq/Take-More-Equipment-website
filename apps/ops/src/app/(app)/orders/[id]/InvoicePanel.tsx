@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Panel } from "@takemore/ui";
-import { INVOICE_HEADINGS, invoiceFilename, rands, whatsappDigits } from "@takemore/core";
+import { INVOICE_HEADINGS, invoiceFilename, planBalance, randsExact as rands, whatsappDigits } from "@takemore/core";
 import type { OrderDetail, OrderInvoiceRow } from "@/lib/orders";
 import { draftInvoiceMessage } from "@/lib/message";
 import { issueInvoice } from "../actions";
@@ -86,10 +86,11 @@ export default function InvoicePanel({
 
   const paid = order.status === "paid";
   const cancelled = order.status === "void";
-  const wantKind = paid ? "invoice" : "proforma";
+  const balance = planBalance(order, chargedTotalCents, order.receipts);
+  const wantKind = paid || balance.received > 0 ? "invoice" : "proforma";
 
   // Newest first, so the first match is the one in force.
-  const current = invoices.find((i) => i.kind === wantKind) ?? null;
+  const current = cancelled ? invoices[0] ?? null : invoices.find((i) => i.kind === wantKind) ?? null;
 
   /**
    * A document that no longer describes the sale.
@@ -104,7 +105,7 @@ export default function InvoicePanel({
    * A proforma is deliberately not checked: it is issued against an order that
    * is still being negotiated, so its total is expected to move.
    */
-  const stale = paid && current !== null && current.total_cents !== chargedTotalCents;
+  const stale = !cancelled && current !== null && (!order.lead_id || current.total_cents !== chargedTotalCents || (order.charges_ready && current.received_cents !== balance.received));
 
   const url = current ? `/api/invoices/${current.id}` : null;
   const filename = current ? invoiceFilename(current) : null;
@@ -288,8 +289,8 @@ export default function InvoicePanel({
       subtitle={
         cancelled
           ? "This sale was cancelled. The documents already issued are kept."
-          : paid
-            ? undefined
+          : balance.received > 0
+            ? balance.balance > 0 ? "Part payment received. The invoice shows the outstanding balance." : "Fully paid."
             : configured.bank
               ? "A proforma, with the banking details, for somebody paying by transfer."
               : "A proforma, for somebody paying by transfer."
@@ -332,16 +333,16 @@ export default function InvoicePanel({
             {stale && (
               <p className="text-xs text-status-sold bg-status-sold/10 border border-status-sold/30 rounded-xl px-3 py-2.5">
                 This sale has been corrected since {current.number} went out — it says{" "}
-                {rands(current.total_cents)} and the order now says {rands(chargedTotalCents)}. Issue
-                a new invoice and send the customer that one.
+                {rands(current.total_cents)} and the order now says {rands(chargedTotalCents)}. Update
+                the invoice before sending the customer this balance.
               </p>
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="primary" disabled={disabled} onClick={send} className="text-xs px-4 py-2">
+              <Button variant="primary" disabled={disabled || stale} onClick={send} className="text-xs px-4 py-2">
                 Send on WhatsApp
               </Button>
-              <Button variant="secondary" disabled={disabled} onClick={print} className="text-xs px-4 py-2">
+              <Button variant="secondary" disabled={disabled || stale} onClick={print} className="text-xs px-4 py-2">
                 Print
               </Button>
               <a
@@ -415,7 +416,7 @@ export default function InvoicePanel({
                   onClick={issue}
                   className="text-xs px-3 py-2"
                 >
-                  {stale ? "Issue a corrected invoice" : "Issue an updated proforma"}
+                  {stale ? "Issue a corrected invoice" : wantKind === "invoice" ? "Issue an updated invoice" : "Issue an updated proforma"}
                 </Button>
                 <p className="text-[11px] font-light text-muted mt-2 leading-relaxed">
                   {/* Stated plainly because it is the property the whole design
@@ -520,6 +521,8 @@ const messageFor = (
     number: invoice?.number ?? "",
     leadName: order.lead?.full_name ?? null,
     totalCents: invoice?.total_cents ?? 0,
+    receivedCents: invoice?.received_cents,
+    balanceCents: invoice?.balance_cents,
     delivering: order.delivery,
     bankOnDocument,
   });

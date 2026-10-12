@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Field, Input, Select, Textarea } from "@takemore/ui";
-import { LEAD_SOURCES, LEAD_SOURCE_LABELS, formatPhone, normalisePhone } from "@takemore/core";
+import { CUSTOMER_SOURCES, LEAD_SOURCE_LABELS, formatPhone, normalisePhone } from "@takemore/core";
 import { byDivision, type CategoryOption } from "@/lib/catalogue";
 import { createLead } from "./actions";
 
@@ -90,7 +90,7 @@ export default function NewLeadButton({
 
         <Field label="How did they reach us?">
           <Select name="source" defaultValue="walk_in">
-            {LEAD_SOURCES.filter((s) => !s.startsWith("website")).map((s) => (
+            {CUSTOMER_SOURCES.map((s) => (
               <option key={s} value={s}>
                 {LEAD_SOURCE_LABELS[s]}
               </option>

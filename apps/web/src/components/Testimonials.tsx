@@ -112,37 +112,36 @@ function Proof() {
   const points = [
     {
       icon: "solar:gallery-wide-linear",
-      title: "The photographs are of the actual machine",
-      copy: "Not a catalogue render of the model. The unit on the page is the unit on the floor, with its own scratches in frame.",
+      title: "Photos of the actual item",
+      copy: "The photos show the item you’re buying, including any visible signs of use.",
       href: "/#catalogue",
       link: "See the stock",
     },
     {
       icon: "solar:map-point-linear",
-      title: "See it before you choose",
-      copy: "Visit the warehouse, inspect the equipment and ask our team your questions. Choose what works for you, then arrange collection or delivery.",
+      title: "See it in person",
+      copy: "View the equipment at our warehouse and choose what suits your needs. Collect your purchase or arrange delivery.",
       href: "/about#visit",
       link: "Plan your visit",
     },
     {
       icon: "solar:list-check-linear",
-      title: "The grades mean something specific",
-      copy: "New, Like New, Good and Fair are defined and applied the same way to every unit. If we will not write it down, we do not claim it.",
+      title: "Clear condition descriptions",
+      copy: "Each item is listed as New, Like New, Used or Fair, so you know what to expect before you visit. Read the product description for more details about its condition.",
       href: "/conditions",
-      link: "How we grade",
+      link: "Our condition guide",
     },
   ];
 
   return (
     <section className="py-14 md:py-24 px-6 md:px-12 w-full max-w-[1440px] mx-auto">
       <div className="flex flex-col items-center text-center mb-10 md:mb-16">
-        <Subheading text="Why Trust This" />
         <h2 className="text-2xl sm:text-3xl lg:text-5xl font-medium tracking-tight">
-          Proof, Not Adjectives
+          Buy with confidence
         </h2>
         <p className="text-muted font-light text-sm md:text-base leading-relaxed mt-5 max-w-xl">
-          Anyone can print a five-star quote. These are things you can check on
-          this page, before you speak to us at all.
+          Browse photos, read product descriptions and check each item’s condition online.
+          Visit our warehouse to see the equipment in person and ask our team any questions before you buy.
         </p>
       </div>
 

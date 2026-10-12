@@ -43,11 +43,11 @@ export const metadata: Metadata = {
   ...(indexable ? {} : { robots: { index: false, follow: false } }),
   title: "Take More — Refurbished Catering Equipment, Cape Town",
   description:
-    "Commercial catering equipment rebuilt in our Cape Town workshop and priced 40–60% below new. Rebuilt, tested and clearly described. Visit our Montague Gardens warehouse to choose your equipment.",
+    "Second-hand catering equipment, furniture and home finds at affordable prices. Browse photos and condition descriptions, then visit our Montague Gardens warehouse.",
   openGraph: {
     title: "Take More — Refurbished Catering Equipment, Cape Town",
     description:
-      "Restaurant-grade kit at half the retail price. Rebuilt, tested and clearly priced. Visit the warehouse, then collect or arrange delivery.",
+      "Quality equipment. Great prices. Browse catering equipment, furniture and home finds, then visit the warehouse.",
     locale: "en_ZA",
     type: "website",
   },

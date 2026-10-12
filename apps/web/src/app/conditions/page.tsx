@@ -10,55 +10,31 @@ export const metadata: Metadata = {
   alternates: { canonical: "/conditions" },
   title: "Condition & Inspection — Take More",
   description:
-    "What New, Like New, Good and Fair mean, and what to check when you visit the warehouse.",
+    "What New, Like New, Used and Fair mean, and what to check when you visit the warehouse.",
 };
 
 const grades = {
-  N: { headline: "New", copy: "New and unused.", examples: ["Not previously used", "Product details explain what is included"] },
-  A: { headline: "Like New", copy: "Previously owned, with a near-new appearance.", examples: ["No significant visible wear", "Check the listing for details"] },
-  B: { headline: "Good", copy: "Visible signs of use, clearly described and photographed.", examples: ["Surface scratches or small dents", "Condition reflected in the price"] },
-  C: { headline: "Fair", copy: "Noticeable wear or cosmetic damage, clearly described and photographed.", examples: ["Visible marks or previous repairs", "Inspect the details before buying"] },
+  N: { headline: "New", copy: "New and unused.", examples: ["Not previously used.", "Check the listing for details."] },
+  A: { headline: "Like New", copy: "Previously owned, with a near-new appearance.", examples: ["No significant visible wear.", "Check the listing for details."] },
+  B: { headline: "Used", copy: "Visible signs of use, clearly described and photographed.", examples: ["Surface scratches or small dents.", "Check the listing for details."] },
+  C: { headline: "Fair", copy: "More noticeable signs of use, with cosmetic wear clearly described and photographed.", examples: ["Visible wear, such as scratches, marks or dents.", "Check the listing for details."] },
 };
-
-const workshop = [
-  {
-    icon: "solar:magnifer-zoom-in-linear",
-    title: "Strip and assess",
-    copy: "Every unit is photographed on arrival before any work starts, then stripped far enough to see what has actually been running.",
-  },
-  {
-    icon: "solar:settings-linear",
-    title: "Replace what is worn",
-    copy: "Gaskets, elements, thermostats, bearings, castors, seals and probes. Not cleaned and resold — replaced.",
-  },
-  {
-    icon: "solar:checklist-minimalistic-linear",
-    title: "Test under load",
-    copy: "A full service cycle at working temperature, with rinse and core temperatures verified against a reference instrument.",
-  },
-  {
-    icon: "solar:gallery-wide-linear",
-    title: "Grade and photograph",
-    copy: "A clear condition label, then photographed as-is. Scratches included.",
-  },
-];
 
 export default function ConditionsPage() {
   return (
     <PageShell browse={<BrowseMore />}
       eyebrow="Condition & Inspection"
-      title={<>A lower price should not mean a bigger gamble.</>}
-      intro="Clear condition labels help you shortlist. Visit the warehouse to inspect your favourites and ask our team about each item."
+      title={<>Understand each item’s condition</>}
+      intro="We clearly describe each item’s condition to help you choose."
       crumbs={[{ label: "Home", href: "/" }, { label: "Condition & Inspection" }]}
     >
       <ContentSection>
-        <Subheading text="The Grades" />
+        <Subheading text="Condition" />
         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-medium tracking-tight mb-4">
-          Clear condition. No guesswork.
+          Our condition guide
         </h2>
         <p className="text-muted font-light text-sm leading-relaxed max-w-2xl mb-12">
-          Grades describe appearance and nothing else. Mechanical condition is not part of
-          the grade, because a machine either works properly or we do not list it. Check the product details and ask our team about the tests carried out.
+          Our condition labels describe each item’s appearance and signs of use. Catering equipment is inspected, repaired and tested before being listed for sale.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -89,34 +65,11 @@ export default function ConditionsPage() {
       </ContentSection>
 
       <ContentSection>
-        <Subheading text="The Workshop" />
-        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-medium tracking-tight mb-12">
-          What happens before anything is listed
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {workshop.map((step, idx) => (
-            <div key={step.title} className="border-t border-border pt-8 flex flex-col">
-              <div className="flex items-center justify-between mb-8">
-                <span className="text-4xl sm:text-3xl font-light tracking-tighter text-white/15">
-                  0{idx + 1}
-                </span>
-                <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center text-accent">
-                  <iconify-icon icon={step.icon} width="22" height="22"></iconify-icon>
-                </div>
-              </div>
-              <h3 className="text-2xl font-medium tracking-tight mb-3">{step.title}</h3>
-              <p className="text-muted font-light text-sm leading-relaxed">{step.copy}</p>
-            </div>
-          ))}
+        <p className="text-muted font-light mb-6">Before choosing, read our collection and delivery policy for measurements, access and connection requirements.</p>
+        <div className="flex flex-wrap gap-6 text-sm text-accent">
+          <Link href="/before-you-buy">Before you buy — collection &amp; delivery →</Link>
+          <Link href="/about#visit">Plan your visit →</Link>
         </div>
-      </ContentSection>
-
-      <ContentSection>
-        <Subheading text="Before You Choose" />
-        <h2 className="text-2xl md:text-4xl font-medium tracking-tight mb-4">Take a closer look.</h2>
-        <p className="text-muted font-light leading-relaxed max-w-2xl mb-6">Check the condition, dimensions and features in person. For equipment, confirm that the power, gas, water and access requirements suit your space. Ask our team about the item and the work carried out.</p>
-        <p className="text-xs text-muted mb-6">Your applicable statutory consumer rights are not affected.</p>
-        <Link href="/about#visit" className="text-accent text-sm">Plan your visit →</Link>
       </ContentSection>
     </PageShell>
   );

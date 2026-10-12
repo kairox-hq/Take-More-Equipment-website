@@ -1,7 +1,7 @@
 export const SALE_PLANS = ['immediate', 'layby', 'reservation', 'asset_finance'] as const;
 export type SalePlan = typeof SALE_PLANS[number];
 export const SALE_PLAN_LABELS: Record<SalePlan, string> = {
-  immediate: 'Pay in full', layby: 'Lay-by', reservation: '7-day reservation', asset_finance: 'Asset financing',
+  immediate: 'Pay in full', layby: 'Lay-by', reservation: '7-day reservation', asset_finance: 'Rental Finance',
 };
 export type SaleTerms = {
   sale_plan: SalePlan | null; plan_start: string | null; plan_months: number | null;
@@ -23,7 +23,7 @@ export function reservationDue(start: string) {
 }
 export function planBalance(terms: SaleTerms, total: number, receipts: OrderReceipt[], today = todaySA()) {
   const received = receipts.reduce((sum, r) => sum + (r.entry_kind === 'refund' ? -r.amount_cents : r.amount_cents), 0);
-  const deposit = terms.plan_deposit_cents ?? 0;
+  const deposit = Math.min(total, terms.plan_deposit_cents ?? 0);
   const schedule = terms.plan_start && terms.plan_final_due ? [
     { date: terms.plan_start, target: deposit, label: 'Initial payment' },
     ...(terms.sale_plan === 'layby' && terms.plan_months && terms.plan_payment_day
@@ -34,7 +34,10 @@ export function planBalance(terms: SaleTerms, total: number, receipts: OrderRece
   ] : [];
   const next = schedule.find(s => s.target > received);
   const dueTarget = schedule.filter(s => s.date <= today).at(-1)?.target ?? 0;
-  return { received, balance: Math.max(0, total - received), due: Math.max(0, dueTarget - received), next,
+  const pastDue = schedule.filter(s => s.date < today && s.target > received);
+  const overdue = Math.max(0, (pastDue.at(-1)?.target ?? 0) - received);
+  return { received, balance: Math.max(0, total - received), refundDue: Math.max(0, received - total),
+    due: Math.max(0, dueTarget - received), overdue, overdueDate: pastDue[0]?.date ?? null, next,
     monthly: terms.plan_months ? Math.ceil((total - deposit) / terms.plan_months) : null, schedule };
 }
 
@@ -42,7 +45,7 @@ export const PURCHASE_OPTIONS = ['immediate', 'layby', 'reservation', 'hire', 'p
 export type PurchaseOption = typeof PURCHASE_OPTIONS[number];
 export const PURCHASE_OPTION_LABELS: Record<PurchaseOption, string> = {
   immediate: 'Normal sale', layby: 'Lay-by', reservation: 'Deposit / 7-day reservation',
-  hire: 'Hire', payjustnow: 'PayJustNow', asset_finance: 'Asset financing',
+  hire: 'Hire', payjustnow: 'PayJustNow', asset_finance: 'Rental Finance',
 };
 export function purchaseOption(order: {purchase_option?: PurchaseOption | null; kind: string; sale_plan: SalePlan | null; payment_method: string | null}): PurchaseOption | null {
   if (order.purchase_option) return order.purchase_option;

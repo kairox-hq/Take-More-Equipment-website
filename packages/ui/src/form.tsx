@@ -158,10 +158,12 @@ export function ChipGroup<T extends string>({
   options,
   selected,
   onToggle,
+  disabled = false,
 }: {
   options: { value: T; label: string }[];
   selected: readonly T[];
   onToggle: (value: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -171,6 +173,9 @@ export function ChipGroup<T extends string>({
           <button
             key={option.value}
             type="button"
+            disabled={disabled}
+            aria-pressed={on}
+            aria-label={on ? `Remove ${option.label} tag` : `Add ${option.label} tag`}
             onClick={() => onToggle(option.value)}
             className={`px-3 py-1.5 rounded-full text-xs font-light border transition-colors ${
               on
@@ -179,6 +184,7 @@ export function ChipGroup<T extends string>({
             }`}
           >
             {option.label}
+            {on && <span aria-hidden="true" className="ml-1.5">×</span>}
           </button>
         );
       })}

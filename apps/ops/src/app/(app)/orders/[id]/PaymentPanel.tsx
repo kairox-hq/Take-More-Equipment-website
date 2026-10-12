@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button, Field, Input, Panel, RandInput } from "@takemore/ui";
 import {
   PAYMENT_METHODS,
+  orderChargesCents,
+  planBalance,
   PAYMENT_METHOD_LABELS,
   discountCents,
   discountPercent,
   orderEconomics,
-  rands,
+  randsExact as rands,
   type PaymentMethod,
 } from "@takemore/core";
 import {
@@ -86,6 +88,7 @@ export default function PaymentPanel({
   const router = useRouter();
 
   const paid = order.status === "paid";
+  const outstanding = planBalance(order, order.charged_total_cents ?? 0, order.receipts).balance;
   const cancelled = order.status === "void";
   /**
    * An order nobody finished.
@@ -112,7 +115,7 @@ export default function PaymentPanel({
   const discards = open && !everPaid;
 
   const goods = paid ? (order.sold_total_cents ?? 0) : hire ? hire.totalCents : (cents ?? 0);
-  const charged = goods + order.delivery_fee_cents;
+  const charged = goods + orderChargesCents(order);
   const off = hire ? null : discountCents(listTotalCents, cents);
   const offPercent = hire ? null : discountPercent(listTotalCents, cents);
   /**
@@ -144,7 +147,7 @@ export default function PaymentPanel({
   const economics =
     costTotalCents === null || hire
       ? null
-      : orderEconomics(goods, order.delivery_fee_cents, costTotalCents);
+      : orderEconomics(goods, orderChargesCents(order), costTotalCents);
   const margin = economics?.marginCents ?? null;
   const belowCost = margin !== null && margin < 0;
 
@@ -188,7 +191,7 @@ export default function PaymentPanel({
 
   return (
     <Panel
-      title={paid ? "Paid" : cancelled ? "Cancelled" : hire ? "What the hire comes to" : "Price & payment"}
+      title={paid ? outstanding > 0 && order.charges_ready ? "Payment recorded — balance due" : "Fully paid" : cancelled ? "Cancelled" : hire ? "What the hire comes to" : "Price & payment"}
       subtitle={
         cancelled
           ? (order.void_reason ?? undefined)
@@ -242,6 +245,7 @@ export default function PaymentPanel({
           {order.delivery && (
             <Row label="Delivery" value={rands(order.delivery_fee_cents)} muted />
           )}
+          {order.installation_accepted && !!order.installation_quote_cents && <Row label="Installation" value={rands(order.installation_quote_cents)} muted />}
           <Row label="Customer pays" value={rands(charged)} strong />
         </dl>
 
@@ -260,7 +264,7 @@ export default function PaymentPanel({
             {economics !== null && economics.deliveryCostCents > 0 && (
               <>
                 <Row
-                  label="Delivery we pay out"
+                  label="Service costs assumed equal to charges"
                   value={rands(economics.deliveryCostCents)}
                   muted
                 />

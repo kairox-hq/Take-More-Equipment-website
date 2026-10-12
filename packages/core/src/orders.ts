@@ -40,17 +40,32 @@ export const isOutOnHire = (order: {
 
 export const PAYMENT_METHODS = ["card_machine", "bank_transfer", "payjustnow"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const REFUND_METHODS = ["cash", "card_machine", "bank_transfer"] as const;
+export type RefundMethod = (typeof REFUND_METHODS)[number];
+export const REFUND_METHOD_LABELS: Record<RefundMethod, string> = {
+  cash: "Cash", card_machine: "Card machine", bank_transfer: "EFT",
+};
 
 /**
  * What the salesperson ticks. Neither one moves money — the card machine and
  * the bank do that, and this records which of them it was so the day's takings
  * can be reconciled.
  */
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod | RefundMethod, string> = {
+  cash: "Cash",
   card_machine: "Card machine",
   bank_transfer: "Bank transfer",
   payjustnow: "PayJustNow",
 };
+
+export type OrderCharges = {
+  delivery_fee_cents: number;
+  installation_quote_cents?: number | null;
+  installation_accepted?: boolean;
+};
+export const orderChargesCents = (order: OrderCharges): number =>
+  order.delivery_fee_cents
+  + (order.installation_accepted ? order.installation_quote_cents ?? 0 : 0);
 
 /**
  * Split a discounted total across the machines it was agreed for.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listOrders } from "@/lib/orders";
-import { planBalance } from "@takemore/core";
+import { planBalance, randsExact } from "@takemore/core";
 import { Suspense } from "react";
 import { getLastCronRun, listItems } from "@/lib/queries";
 import { listLeads } from "@/lib/leads";
@@ -420,14 +420,22 @@ async function PaymentAttention() {
   try {
     const orders = await listOrders();
     let due = 0, refunds = 0;
+    const overdue: { id: string; code: string; amount: number; date: string | null }[] = [];
     for (const order of orders) {
-      if (!order.plan_confirmed_at) continue;
       const balance = planBalance(order, order.charged_total_cents ?? 0, order.receipts);
-      if (order.status === "draft" && balance.due > 0) due++;
-      if (order.status === "void" && balance.received > 0) refunds++;
+      if (order.status !== "void" && (balance.due > 0 || order.status === "paid" && order.charges_ready && balance.balance > 0)) due++;
+      if (order.status === "void" ? balance.received > 0 : balance.refundDue > 0) refunds++;
+      if (order.status !== "void" && order.plan_confirmed_at && ["layby","reservation"].includes(order.sale_plan ?? "") && balance.overdue > 0)
+        overdue.push({ id: order.id, code: order.code, amount: balance.overdue, date: balance.overdueDate });
     }
-    if (!due && !refunds) return null;
-    return <Link href="/orders" className="block mb-5 rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm text-accent">{due} payment{due === 1 ? "" : "s"} due · {refunds} refund{refunds === 1 ? "" : "s"} pending. Review orders →</Link>;
+    if (!due && !refunds && !overdue.length) return null;
+    return <section className="mb-5 rounded-xl border border-accent/30 bg-accent/5 p-4 space-y-3">
+      <h2 className="text-sm font-medium">Payment reminders</h2>
+      <Link href="/orders" className="block text-sm text-accent">{due} payment{due === 1 ? "" : "s"} due · {refunds} refund{refunds === 1 ? "" : "s"} pending. Review orders →</Link>
+      {overdue.length > 0 && <ul className="space-y-2 text-sm text-status-sold">{overdue.map(order => <li key={order.id}>
+        <Link href={`/orders/${order.id}`}>{order.code} · Overdue {randsExact(order.amount)} · due {order.date} →</Link>
+      </li>)}</ul>}
+    </section>;
   } catch (error) {
     reportError(error, { where: "dashboard/payment-attention" });
     return <Link href="/orders" className="block mb-4 text-sm text-muted">Payment checks could not load. Open orders to review →</Link>;

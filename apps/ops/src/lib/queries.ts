@@ -61,21 +61,20 @@ export type ItemRow = {
  */
 const ITEM_LIST_SELECT = `
   id, sku, slug, title, brand, status, condition_grade, list_price_cents,
-  published_at, featured, created_at,
+  published_at, website_availability, featured, created_at,
   category:categories(name, slug),
   media:item_media(kind, storage_path, external_url, position)
 `;
 
 export async function listItems(): Promise<ItemRow[]> {
   const client = await supabase();
-  const { data, error } = await client
-    .from("items")
-    .select(ITEM_LIST_SELECT)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ItemRow[];
+  let result = await client.from("items").select(String(ITEM_LIST_SELECT))
+    .is("deleted_at", null).order("created_at", { ascending: false });
+  if (result.error && /website_availability/.test(result.error.message)) result = await client.from("items")
+    .select(ITEM_LIST_SELECT.replace("website_availability, ", "")).is("deleted_at", null).order("created_at", { ascending: false });
+  if (result.error) throw new Error(result.error.message);
+  return ((result.data ?? []) as unknown as (ItemRow & { website_availability?: string })[])
+    .map(row => ({ ...row, published_at: row.website_availability === "hidden" ? null : row.published_at }));
 }
 
 export async function getItem(id: string) {

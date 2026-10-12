@@ -14,6 +14,8 @@
  */
 
 import type { Cents } from "./money.ts";
+import type { OrderReceipt } from "./sale-plans.ts";
+import type { PaymentMethod } from "./orders.ts";
 
 export const INVOICE_KINDS = ["proforma", "invoice"] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
@@ -93,7 +95,7 @@ export type InvoiceHire = {
 };
 
 export type InvoicePayment = {
-  method: "card_machine" | "bank_transfer" | null;
+  method: PaymentMethod | null;
   reference: string | null;
   paid_at: string | null;
 };
@@ -126,6 +128,12 @@ export type InvoiceDocument = {
   adjustment_cents: Cents;
   delivery: InvoiceDelivery | null;
   total_cents: Cents;
+  charges?: { installation_cents: Cents };
+  payments?: OrderReceipt[];
+  deposit_cents?: Cents | null;
+  received_cents?: Cents;
+  balance_cents?: Cents;
+  refund_due_cents?: Cents;
   payment: InvoicePayment | null;
 };
 
@@ -157,9 +165,17 @@ export const checkInvoiceTotals = (doc: InvoiceDocument): string | null => {
     return `The lines come to ${subtotal} but the subtotal says ${doc.subtotal_cents}.`;
   }
 
-  const total = subtotal + doc.adjustment_cents + (doc.delivery?.fee_cents ?? 0);
+  const total = subtotal + doc.adjustment_cents + (doc.delivery?.fee_cents ?? 0)
+    + (doc.charges?.installation_cents ?? 0);
   if (total !== doc.total_cents) {
-    return `Subtotal, discount and delivery come to ${total} but the total says ${doc.total_cents}.`;
+    return `Subtotal, adjustment and charges come to ${total} but the total says ${doc.total_cents}.`;
+  }
+
+  if (doc.received_cents !== undefined && doc.payments) {
+    const received = doc.payments.reduce((sum, r) => sum + (r.entry_kind === "refund" ? -r.amount_cents : r.amount_cents), 0);
+    if (received !== doc.received_cents) return "Payment history does not match the amount received.";
+    if (doc.balance_cents !== Math.max(0, total - received)) return "Outstanding balance does not match the total and payments.";
+    if (doc.refund_due_cents !== Math.max(0, received - total)) return "Refund due does not match the total and payments.";
   }
 
   return null;

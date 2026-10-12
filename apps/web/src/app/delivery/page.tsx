@@ -13,6 +13,6 @@ export default function Delivery() {
       <section><h2 className="text-2xl mb-4">Using your own transport?</h2><p className="text-muted font-light">You can arrange your own vehicle or courier. Check that it suits the item and coordinate collection with our team.</p></section>
       <section><h2 className="text-2xl mb-4">Check before you collect</h2><p className="text-muted font-light">Check dimensions, access and condition. For equipment, check the electrical, gas, water and plumbing requirements. Ask us for measurements or more photographs if you cannot visit.</p></section>
     </div>
-    <div className="flex flex-wrap gap-6 text-sm text-accent"><Link href="/about#visit">Arrange collection or delivery →</Link><Link href="/conditions">Condition &amp; inspection →</Link><Link href="/payment-options">Ways to pay →</Link></div>
+    <div className="flex flex-wrap gap-6 text-sm text-accent"><Link href="/about#visit">Arrange collection or delivery →</Link><Link href="/conditions">Condition &amp; inspection →</Link><Link href="/payment-options">Ways to pay →</Link><Link href="/before-you-buy">Before you buy — collection &amp; delivery →</Link></div>
   </PageShell>;
 }

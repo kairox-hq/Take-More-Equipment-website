@@ -19,7 +19,7 @@ import {
   CONDITION_GRADES,
   LEAD_EVENT_ICONS,
   LEAD_EVENT_LABELS,
-  LEAD_SOURCES,
+  CUSTOMER_SOURCES,
   LEAD_SOURCE_LABELS,
   LEAD_STATUSES,
   LEAD_STATUS_LABELS,
@@ -260,7 +260,8 @@ export default function LeadEditor({
               value={lead.source}
               onChange={(e) => save({ source: e.target.value as LeadRow["source"] })}
             >
-              {LEAD_SOURCES.map((s) => (
+              {!CUSTOMER_SOURCES.some(s => s === lead.source) && <option value={lead.source}>{LEAD_SOURCE_LABELS[lead.source]}</option>}
+              {CUSTOMER_SOURCES.map((s) => (
                 <option key={s} value={s}>
                   {LEAD_SOURCE_LABELS[s]}
                 </option>

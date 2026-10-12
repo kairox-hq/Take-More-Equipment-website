@@ -402,3 +402,43 @@ Worth knowing so they read as design rather than as bugs:
 The optional server setting `ASSET_FINANCE_INITIAL_PERCENT` pre-fills the initial
 finance payment. Configure the agreed rate privately in each environment. Staff
 review the amount and enter the expected final payment date before confirmation.
+
+
+## Order charges and payment balances
+
+Apply `20261012154553_order_charges_payments_and_availability.sql` with the normal
+migration process before releasing these controls. It extends the generated total,
+converts previously recorded full payments into the receipt ledger, and preserves
+existing orders, receipts and issued documents.
+
+Rental Finance offers an optional **Installation quote**. Select “Installation
+accepted — charge through Take More” to include it. Save the quote before confirming
+an agreement or recording a payment. Installation can change after payment; increases
+leave the recorded money intact and show a new outstanding balance, while reductions
+can leave a refund due. Delivery retains the existing distance tariff and controls.
+
+Invoices show the order total, initial payment received, all payments and refunds,
+and the outstanding balance. Balance zero shows **Fully paid**. A payment or amount
+change issues an updated version when an invoice already exists; the application
+also issues the first document when the configured business details permit it.
+Earlier documents remain downloadable. A changed invoice must be sent to the customer
+by staff; updating a document does not send it.
+
+Staff see due payments in the Dashboard, Orders and the order detail. Lay-by and
+seven-day reservations become **Overdue** after the calendar due date, using
+Africa/Johannesburg, and show the unpaid amount and due date. Recording payment or
+cancelling the order updates the indicators. “Copy customer payment reminder” prepares
+a message telling the customer to use their name and surname as the reference.
+Customer reminders are sent by staff. There is no automatic payment email/WhatsApp job;
+the existing `/api/match` cron matches stock to interests.
+
+Refund methods are Cash, Card machine and EFT. A refund records money already sent,
+for a cancelled order or an overpayment. It does not transfer money. Hire uses 4% of
+the asking price per day, with 15% off the daily rate from day 8; departure and return
+days both count. Rates and order totals display two decimal places.
+
+The website uses **Finance**, OPS uses **Rental Finance**, and condition code B displays
+**Used**. Workshop reports are no longer shown or edited; historical notes remain
+stored. The Facebook button links to the public page configured in `apps/web/src/data/site.ts`.
+The condition guide remains at `/conditions`;
+`/before-you-buy` is linked from product pages, Delivery & Collection and the footer.

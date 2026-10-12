@@ -7,23 +7,12 @@ import SiteImage from "@/components/SiteImage";
 import Stats from "@/components/Stats";
 import Subheading from "@/components/Subheading";
 import { claims, isVerified, media } from "@/data/launch";
-import { newLineCost, savingRange, site, whatsappLink } from "@/data/site";
-
-/**
- * Two figures on this page are marketing claims rather than descriptions: how
- * far below new we price, and what a new line costs. Both are withheld until
- * verified, and the sentences around them are written twice — once with the
- * number and once without — rather than left with a gap where it should be.
- */
-const saving = savingRange();
-const lineCost = newLineCost();
+import { site, whatsappLink } from "@/data/site";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/about" },
   title: "About Us — Take More Catering Equipment, Cape Town",
-  description: saving
-    ? `A commercial kitchen equipment workshop in Montague Gardens, Cape Town. We rebuild and test every machine we sell, and price it ${saving} below new.`
-    : "A commercial kitchen equipment workshop in Montague Gardens, Cape Town. We rebuild and test every machine we sell, and price it well below new.",
+  description: "Second-hand catering equipment, furniture and home finds in Montague Gardens, Cape Town.",
 };
 
 const statFacts = [
@@ -32,34 +21,12 @@ const statFacts = [
   claims.delivery,
 ];
 
-const principles = [
-  {
-    icon: "solar:gallery-wide-linear",
-    title: "Photograph the flaws",
-    copy: "Every unit is listed with its actual scratches and dents in frame. A buyer who drives to Montague Gardens should find exactly what they saw on the screen.",
-  },
-  {
-    icon: "solar:tuning-2-linear",
-    title: "Replace, don't polish",
-    copy: "The cheap way to sell a machine is to clean it and move it on fast. We replace the worn parts first, which costs us more and is the whole point.",
-  },
-  {
-    icon: "solar:bill-list-linear",
-    title: "Put it in writing",
-    copy: "Prices, grades, workshop details are published, not negotiated at the door. If we will not write it down, we will not claim it.",
-  },
-];
-
 export default function AboutPage() {
   return (
     <PageShell browse={<BrowseMore />}
       eyebrow="About Us"
-      title={<>The kitchen you wanted, at the number you actually budgeted.</>}
-      intro={
-        saving
-          ? `Take More Catering Equipment is a workshop in Montague Gardens, Cape Town. We rebuild commercial kitchen equipment to a standard it will hold for years, price it ${saving} below new, and invite you to inspect it in person before choosing.`
-          : "Take More Catering Equipment is a workshop in Montague Gardens, Cape Town. We rebuild commercial kitchen equipment to a standard it will hold for years, price it well below new, and invite you to inspect it in person before choosing."
-      }
+      title={<>The kitchen you want. A price that works for you.</>}
+      intro="Take More Equipment is a warehouse in Montague Gardens, Cape Town, selling second-hand catering equipment, furniture and home finds. Explore our range in person and find what you need at affordable prices."
       crumbs={[{ label: "Home", href: "/" }, { label: "About Us" }]}
     >
       {/* The whole section goes, border and all, when no stat is verified — a
@@ -75,36 +42,13 @@ export default function AboutPage() {
       <ContentSection>
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-24">
           <div className="lg:w-1/2">
-            <Subheading text="The Problem" />
+            <Subheading text="Your Budget" />
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-medium tracking-tight mb-8">
-              Most kitchens are not built to the menu. They are built to the quote.
+              More equipment within your budget
             </h2>
             <div className="flex flex-col gap-6 text-muted font-light text-sm md:text-base leading-relaxed">
-              <p>
-                {lineCost
-                  ? `A working line for a 60-seat restaurant quotes at around ${lineCost} new, before extraction, gas certification or an electrician.`
-                  : "A working line for a 60-seat restaurant quotes at a number that stops most people before they start, and that is before extraction, gas certification or an electrician."}{" "}
-                So the menu gets cut to fit the machines that survived the budget, or the
-                whole thing goes on finance that takes three years to clear.
-              </p>
-              <p>
-                The usual escape is a private sale. You drive across town to a unit with no
-                power connected, the seller tells you it was working when it came out, and
-                the moment you load it there is nobody to call. It is cheap right up until
-                a compressor goes on a Friday and takes a weekend of stock with it.
-              </p>
-              <p>
-                We built this business to remove that choice. Every machine is stripped,
-                given a parts list and photographed before any work starts. Worn parts are
-                replaced, not cleaned. Then it runs a full cycle under load, gets graded
-                for looks, and only then gets a price.
-              </p>
-              <p>
-                The result is that a kitchen opening on a real budget runs the same German
-                and Italian equipment that gets specced into new fit-outs, at roughly half
-                the price. See it in person on
-                our floor now, not eight weeks out on a ship.
-              </p>
+              <p>Setting up or upgrading a commercial kitchen can be expensive. Buying everything new can mean cutting back on the equipment you need to bring your menu to life.</p>
+              <p>At Take More Equipment, our second-hand range offers a more affordable way to equip your kitchen. With prices below buying new, you can put more of your budget towards the equipment that matters to your business.</p>
             </div>
           </div>
 
@@ -116,33 +60,8 @@ export default function AboutPage() {
                 fallbackClassName="w-full aspect-[4/3]"
               />
             </div>
-            <p className="text-xs font-light text-muted mt-4">
-              The wash-up line, rebuilt and tested before listing.
-            </p>
-          </div>
-        </div>
-      </ContentSection>
 
-      <ContentSection>
-        <Subheading text="How We Work" />
-        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-medium tracking-tight mb-12">
-          Three rules we do not bend
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {principles.map((principle) => (
-            <div
-              key={principle.title}
-              className="bg-card rounded-[2rem] p-6 sm:p-8 md:p-10 border border-border hover:border-white/10 transition-colors group"
-            >
-              <div className="w-14 h-14 rounded-2xl bg-background border border-border flex items-center justify-center text-accent mb-8 group-hover:scale-110 transition-transform">
-                <iconify-icon icon={principle.icon} width="24" height="24"></iconify-icon>
-              </div>
-              <h3 className="text-xl font-medium tracking-tight mb-4">{principle.title}</h3>
-              <p className="text-muted font-light text-sm leading-relaxed">
-                {principle.copy}
-              </p>
-            </div>
-          ))}
+          </div>
         </div>
       </ContentSection>
 

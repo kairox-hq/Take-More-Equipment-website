@@ -71,8 +71,8 @@ export const STAGES = [
   {
     status: "reserved",
     label: "Reserved",
-    live: false,
-    hint: "Held for a buyer — off the website",
+    live: true,
+    hint: "Visible as Reserved; lay-by and finance are hidden",
   },
   {
     status: "sold",
@@ -165,3 +165,8 @@ export const isOnHand = (status: ItemStatus) =>
 
 /** Statuses a buyer can still act on. `reserved` is held for someone else. */
 export const isAvailable = (status: ItemStatus) => status === "listed";
+
+export type PublicAvailability = "available" | "reserved" | "on_hire";
+export const AVAILABILITY_LABELS: Record<PublicAvailability, string> = {
+  available: "Available", reserved: "Reserved", on_hire: "Coming back soon",
+};

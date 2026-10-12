@@ -11,7 +11,7 @@ import {
   formatPhone,
   isOutOnHire,
   normalisePhone,
-  paymentAmount as rands,
+  randsExact as rands,
   type OrderStatus,
 } from "@takemore/core";
 import type { OrderRow } from "@/lib/orders";
@@ -24,7 +24,7 @@ import type { OrderRow } from "@/lib/orders";
  * the difference between a list somebody uses and a list somebody avoids.
  */
 
-type Filter = "all" | "draft" | "paid" | "out" | "void" | "layby" | "reservation" | "asset_finance" | "due" | "refund" | "payjustnow";
+type Filter = "all" | "draft" | "paid" | "out" | "void" | "layby" | "reservation" | "asset_finance" | "due" | "overdue" | "refund" | "payjustnow";
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "Everything" },
@@ -36,9 +36,10 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "void", label: "Cancelled" },
   { value: "layby", label: "Lay-by" },
   { value: "reservation", label: "Reserved" },
-  { value: "asset_finance", label: "Asset financing" },
+  { value: "asset_finance", label: "Rental Finance" },
   { value: "payjustnow", label: "PayJustNow" },
   { value: "due", label: "Payment due" },
+  { value: "overdue", label: "Overdue" },
   { value: "refund", label: "Refund pending" },
 ];
 
@@ -85,8 +86,9 @@ export default function OrdersBrowser({ orders }: { orders: OrderRow[] }) {
       if (filter === "out" && !isOutOnHire(order)) return false;
       if (["draft", "paid", "void"].includes(filter) && order.status !== filter) return false;
       if (["layby", "reservation", "asset_finance"].includes(filter) && (order.sale_plan !== filter || order.status !== "draft")) return false;
-      if (filter === "due" && (order.status !== "draft" || b.due <= 0)) return false;
-      if (filter === "refund" && (order.status !== "void" || b.received <= 0)) return false;
+      if (filter === "due" && (order.status === "void" || (b.due <= 0 && !(order.status === "paid" && order.charges_ready && b.balance > 0)))) return false;
+      if (filter === "overdue" && (order.status === "void" || !order.plan_confirmed_at || !["layby","reservation"].includes(order.sale_plan ?? "") || b.overdue <= 0)) return false;
+      if (filter === "refund" && (order.status === "void" ? b.received <= 0 : b.refundDue <= 0)) return false;
       if (!term) return true;
 
       const haystack = [
@@ -188,7 +190,7 @@ export default function OrdersBrowser({ orders }: { orders: OrderRow[] }) {
                   </div>
 
                   <div className="shrink-0 flex flex-col items-end gap-1.5">
-                    {order.plan_confirmed_at && order.status !== 'paid' && <PlanSummary order={order} />}
+                    {(order.plan_confirmed_at || order.receipts.length > 0) && <PlanSummary order={order} />}
                     <span className="flex items-center gap-1.5">
                       {order.kind === "hire" && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-light border border-white/15 text-white/80">
@@ -198,7 +200,7 @@ export default function OrdersBrowser({ orders }: { orders: OrderRow[] }) {
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-light border ${STATUS_CHROME[order.status]}`}
                       >
-                        {ORDER_STATUS_LABELS[order.status]}
+                        {order.status === "paid" && order.charges_ready && planBalance(order, order.charged_total_cents ?? 0, order.receipts).balance > 0 ? "Balance due" : ORDER_STATUS_LABELS[order.status]}
                       </span>
                     </span>
                     {order.charged_total_cents !== null && order.status !== "draft" && (
@@ -220,5 +222,9 @@ export default function OrdersBrowser({ orders }: { orders: OrderRow[] }) {
 function PlanSummary({ order }: { order: OrderRow }) {
   const b = planBalance(order, order.charged_total_cents ?? 0, order.receipts);
   if (order.status === 'void') return b.received > 0 ? <span className="text-xs text-status-sold">Refund pending · {rands(b.received)}</span> : null;
-  return <span className="text-xs text-right"><span className={b.due > 0 ? "text-status-sold" : "text-accent"}>{b.due > 0 ? `PAYMENT DUE · ${rands(b.due)}` : `${rands(b.balance)} outstanding`}</span>{b.next && <span className="block text-muted">{b.next.label} · {b.next.date}</span>}</span>;
+  if (b.refundDue > 0) return <span className="text-xs text-status-sold">Refund due · {rands(b.refundDue)}</span>;
+  const overdue = ["layby","reservation"].includes(order.sale_plan ?? "") && b.overdue > 0;
+  return <span className="text-xs text-right"><span className={overdue ? "text-status-sold" : "text-accent"}>
+    {overdue ? `Overdue · ${rands(b.overdue)}` : b.balance === 0 ? "Fully paid" : b.due > 0 ? `Payment due · ${rands(b.due)}` : `${rands(b.balance)} outstanding`}
+    </span>{overdue ? <span className="block text-status-sold">Due {b.overdueDate}</span> : b.next && <span className="block text-muted">{b.next.label} · {b.next.date}</span>}</span>;
 }
