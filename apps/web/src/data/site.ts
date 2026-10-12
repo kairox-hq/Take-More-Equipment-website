@@ -27,6 +27,7 @@ export const site = {
   email: contact.email.value,
   address: contact.address.value,
   hours: contact.hours.value,
+  facebook: "https://www.facebook.com/p/Take-More-Equipment-61590585090265/",
 
   registrationNumber: contact.registrationNumber.value,
   informationOfficer: contact.informationOfficer.value,

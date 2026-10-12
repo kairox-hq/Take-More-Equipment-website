@@ -212,11 +212,9 @@ export default function Hero() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 border-t xl:border-t-0 xl:border-l border-white/10 pt-5 md:pt-6 xl:pt-0 xl:pl-12 w-full xl:w-auto"
+            className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4 sm:gap-6 border-t xl:border-t-0 xl:border-l border-white/10 pt-5 md:pt-6 xl:pt-0 xl:pl-8 w-full xl:w-auto"
           >
-            {/* Solar has no Instagram glyph, so this one icon comes from mdi —
-                the only break from the set, and only because the mark has to be
-                the recognisable one. */}
+            {/* Social brand marks come from mdi because Solar has no equivalent. */}
             <a
               href="https://www.instagram.com/takemoreequipment/"
               target="_blank"
@@ -228,7 +226,17 @@ export default function Hero() {
                 <iconify-icon icon="mdi:instagram" width="16" height="16"></iconify-icon>
               </div>
             </a>
-            <div className="hidden sm:block w-[1px] h-8 bg-white/10"></div>
+            <a
+              href={site.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center space-x-3 text-lg font-light hover:text-accent transition-colors w-full sm:w-auto justify-between"
+            >
+              <span>Facebook</span>
+              <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center group-hover:border-accent transition-colors">
+                <iconify-icon icon="mdi:facebook" width="16" height="16"></iconify-icon>
+              </div>
+            </a>
             <a
               href={whatsappLink(home ? "Hi Take More, I'm looking for furniture and home finds." : "Hi Take More, I'm looking for equipment for my kitchen.")}
               target="_blank"
