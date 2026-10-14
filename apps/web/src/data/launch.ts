@@ -165,10 +165,11 @@ export const contact = {
     "Not yet appointed",
     "The person registered with the Information Regulator. By default the head of the business, but it must be a named human being."
   ),
-  domain: unverified(
-    "takemoreequipment.co.za",
-    "The domain this actually serves from, no protocol, no www."
-  ),
+  domain: {
+    value: "takemoreequipment.co.za",
+    verified: "2026-10-14",
+    evidence: "Verified the HTTPS storefront and its production domain aliases.",
+  },
 } as const;
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -22,24 +22,24 @@ export const metadata: Metadata = {
   alternates: { canonical: "/wanted" },
   title: "Looking for something specific? — Take More",
   description:
-    "Tell us the catering equipment you need and your budget. Most of our stock sells before it reaches the website — we will message you when yours comes through the workshop.",
+    "Tell us what equipment you are looking for and your budget. We will let you know when a suitable item becomes available, with photos and prices.",
 };
 
 const steps = [
   {
     icon: "solar:pen-new-square-linear",
     title: "Tell us what you need",
-    copy: "The machine, roughly what you want to spend, and anything that matters — gas or electric, three-phase, how much space you have.",
+    copy: "The equipment, your budget and any size, power or connection requirements.",
   },
   {
     icon: "solar:magnifer-linear",
     title: "We watch for it",
-    copy: "Every unit that comes through the workshop is checked against what people have asked for. Yours is on that list until you tell us to stop.",
+    copy: "If we don’t have it in stock, we’ll look for it and let you know when something suitable becomes available.",
   },
   {
     icon: "solar:chat-round-line-linear",
-    title: "You hear first",
-    copy: "Photos, the price and the condition report, before it goes on the site. Most of our stock sells at this stage.",
+    title: "Photos and prices",
+    copy: "We’ll send you photos, the price and a description of the item’s condition.",
   },
 ];
 
@@ -50,8 +50,8 @@ export default async function WantedPage() {
   return (
     <PageShell browse={<BrowseMore />}
       eyebrow="Wanted"
-      title="Most of our stock sells before it reaches this website."
-      intro="Tell us what you are after and we will watch for it. No obligation, no salesperson phoning you every week — one message when the machine you described comes through the workshop."
+      title="Looking for something specific?"
+      intro="Tell us what equipment you’re looking for and your budget. If we don’t have it in stock, we’ll look for it and let you know when it becomes available, with photos and prices."
       crumbs={[{ label: "Home", href: "/" }, { label: "Wanted" }]}
     >
       <ContentSection>
@@ -82,7 +82,7 @@ export default async function WantedPage() {
                 >
                   WhatsApp us
                 </a>{" "}
-                or call {site.phone}. We write it down at our end either way.
+                or call {site.phone} to discuss what you’re looking for.
               </p>
             </div>
           </div>

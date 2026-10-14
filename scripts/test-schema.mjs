@@ -1038,6 +1038,31 @@ await db.exec('reset role');
 await db.exec(`select public.void_order('${allFree.id}','Release test stock'); select public.void_order('${otherUnits.id}','Release test stock')`);
 check('cancellation restores all seven original unit numbers to the public listing',(await freeCodes()).length===7 && (await batchState()).website_availability==='available');
 
+// The installation quote belongs to the order, while product prices belong to
+// its physical units. Keep payment history and free stock independent of it.
+const financeUnits=await orderForUnits();
+await db.exec(`select public.add_order_line('${financeUnits.id}',null,'${batch.id}',2); select public.choose_purchase_option('${financeUnits.id}','asset_finance'); select public.save_sale_plan('${financeUnits.id}','asset_finance',200000,'${dateSA}',null,null,20000,'${dateSA}'); select public.issue_invoice('${financeUnits.id}','proforma','${issuer()}'::jsonb)`);
+const financeAssigned=await batchLines(financeUnits.id);
+const financeBeforeDeposit=await latestDocument(financeUnits.id);
+await receipt(financeUnits.id,20_000);
+await installation(financeUnits.id,15_000,true);
+let financeUnitDoc=await latestDocument(financeUnits.id);
+check('a finance installation is charged once per order alongside both physical units',financeUnitDoc.d.lines.length===2 && financeUnitDoc.d.total_cents===215_000 && financeUnitDoc.d.charges.installation_cents===15_000 && financeUnitDoc.d.balance_cents===195_000 && checkInvoiceTotals(financeUnitDoc.d)===null);
+check('a partial finance hold leaves five free units available on the public listing',(await batchState()).available_quantity===5 && (await batchState()).website_availability==='available');
+check('finance amount updates preserve the previously issued unit proforma',(await one(db,`select document d from public.order_invoices where id='${financeBeforeDeposit.id}'`)).d.total_cents===200_000);
+await receipt(financeUnits.id,195_000);
+check('full finance payment sells only its two assigned units',(await batchLines(financeUnits.id)).every(l=>num(l.sold_price_cents)===100_000) && (await batchState()).available_quantity===5);
+await installation(financeUnits.id,25_000,true);
+check('extra installation after a multi-unit payment reopens only the extra balance',(await balanceFor(financeUnits.id)).balance===10_000 && (await balanceFor(financeUnits.id)).received===215_000);
+await receipt(financeUnits.id,10_000);
+await installation(financeUnits.id,15_000,true);
+await receipt(financeUnits.id,10_000,true,'cash');
+financeUnitDoc=await latestDocument(financeUnits.id);
+check('multi-unit finance payments and a Cash refund reconcile the current invoice',financeUnitDoc.d.balance_cents===0 && financeUnitDoc.d.received_cents===215_000 && financeUnitDoc.d.refund_due_cents===0 && checkInvoiceTotals(financeUnitDoc.d)===null);
+await db.exec(`select public.void_order('${financeUnits.id}','Release financed test units')`);
+const financeReleasedCodes=await freeCodes();
+check('finance cancellation restores its same unit numbers without erasing receipts',financeReleasedCodes.length===7 && financeAssigned.every(line=>financeReleasedCodes.includes(line.unit_code)) && (await batchLines(financeUnits.id)).map(l=>l.unit_code).join()===financeAssigned.map(l=>l.unit_code).join() && (await balanceFor(financeUnits.id)).received===215_000);
+
 const stockHire = await orderForUnits();
 await db.exec(`select public.add_order_line('${stockHire.id}',null,'${batch.id}',2); select public.choose_purchase_option('${stockHire.id}','hire'); update public.orders set hire_start='2026-09-01',hire_end='2026-09-02' where id='${stockHire.id}'; select public.confirm_hire_paid('${stockHire.id}','card_machine','Two units hired')`);
 check('hire pricing counts both units and leaves the remaining five available',num((await one(db,`select sold_total_cents from public.orders where id='${stockHire.id}'`)).sold_total_cents)===16_000 && (await batchState()).available_quantity===5);
