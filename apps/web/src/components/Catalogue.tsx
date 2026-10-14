@@ -81,7 +81,7 @@ export default function Catalogue({
             <span className="text-xs sm:text-sm font-light text-muted">
               <span className="text-white">{results.length}</span>
               <span className="hidden sm:inline"> of {stock.length}</span>
-              <span className="sm:hidden"> units</span>
+              <span className="sm:hidden"> listings</span>
             </span>
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <iconify-icon

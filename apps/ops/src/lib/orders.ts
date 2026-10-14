@@ -169,6 +169,8 @@ export async function getOrder(id: string): Promise<OrderDetail | null> {
 export type OrderLineRow = {
   id: string;
   item_id: string;
+  item_unit_id: string;
+  unit_code: string;
   position: number;
   list_price_cents: number;
   retail_price_cents: number | null;
@@ -191,19 +193,18 @@ export type OrderLineRow = {
  */
 export async function getOrderLines(orderId: string): Promise<OrderLineRow[]> {
   const client = await supabase();
-  return orEmpty(
-    "orders/getOrderLines",
-    await client
-      .from("order_lines")
-      .select(
-        `id, item_id, position, list_price_cents, retail_price_cents, sold_price_cents,
+  const { data, error } = await client
+    .from("order_lines")
+    .select(
+      `id, item_id, item_unit_id, unit_code, position, list_price_cents, retail_price_cents, sold_price_cents,
          item:items(id, sku, title, brand, status,
                     media:item_media(id, kind, storage_path, external_url, position, alt_text))`
-      )
-      .eq("order_id", orderId)
-      .order("position", { ascending: true })
-      .order("id", { ascending: true })
-  ) as unknown as OrderLineRow[];
+    )
+    .eq("order_id", orderId)
+    .order("position", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as OrderLineRow[];
 }
 
 export type OrderLineCost = {

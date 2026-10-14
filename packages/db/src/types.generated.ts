@@ -23,11 +23,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   public: {
     Tables: {
       access_requests: {
@@ -39,6 +34,7 @@ export type Database = {
           outcome: string
           settled_at: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -69,6 +65,7 @@ export type Database = {
           id: number
           summary: string | null
         }
+        ComputedFields: never
         Insert: {
           action: Database["public"]["Enums"]["activity_action"]
           actor_id?: string | null
@@ -104,6 +101,7 @@ export type Database = {
           position: number
           slug: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           blurb?: string | null
@@ -144,6 +142,7 @@ export type Database = {
           result: Json | null
           started_at: string
         }
+        ComputedFields: never
         Insert: {
           error?: string | null
           finished_at?: string | null
@@ -173,6 +172,7 @@ export type Database = {
           position: number
           slug: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           blurb?: string | null
@@ -203,6 +203,7 @@ export type Database = {
           labour_hours: number | null
           note: string | null
         }
+        ComputedFields: never
         Insert: {
           amount_cents: number
           created_at?: string
@@ -271,6 +272,7 @@ export type Database = {
           storage_path: string | null
           width: number | null
         }
+        ComputedFields: never
         Insert: {
           alt_text?: string | null
           created_at?: string
@@ -337,6 +339,7 @@ export type Database = {
           min_role: Database["public"]["Enums"]["app_role"]
           to_status: Database["public"]["Enums"]["item_status"]
         }
+        ComputedFields: never
         Insert: {
           from_status: Database["public"]["Enums"]["item_status"]
           label: string
@@ -356,6 +359,7 @@ export type Database = {
           item_id: string
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           item_id: string
           tag_id: string
@@ -402,9 +406,90 @@ export type Database = {
           },
         ]
       }
+      item_units: {
+        Row: {
+          code: string
+          current_order_line_id: string | null
+          id: string
+          item_id: string
+          retired_at: string | null
+          sale_price_cents: number | null
+          sold_at: string | null
+          status: Database["public"]["Enums"]["item_status"]
+          unit_number: number
+        }
+        ComputedFields: never
+        Insert: {
+          code: string
+          current_order_line_id?: string | null
+          id?: string
+          item_id: string
+          retired_at?: string | null
+          sale_price_cents?: number | null
+          sold_at?: string | null
+          status: Database["public"]["Enums"]["item_status"]
+          unit_number: number
+        }
+        Update: {
+          code?: string
+          current_order_line_id?: string | null
+          id?: string
+          item_id?: string
+          retired_at?: string | null
+          sale_price_cents?: number | null
+          sold_at?: string | null
+          status?: Database["public"]["Enums"]["item_status"]
+          unit_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_units_current_order_line_id_fkey"
+            columns: ["current_order_line_id"]
+            isOneToOne: true
+            referencedRelation: "order_line_economics"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "item_units_current_order_line_id_fkey"
+            columns: ["current_order_line_id"]
+            isOneToOne: true
+            referencedRelation: "order_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_analytics"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_economics"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "public_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items: {
         Row: {
           arrived_at: string
+          available_quantity: number
           brand: string | null
           capacity: string | null
           category_id: string | null
@@ -427,19 +512,21 @@ export type Database = {
           sku: string
           slug: string
           sold_at: string | null
-          specs: Json
+          specs: NonNullable<Json>
           status: Database["public"]["Enums"]["item_status"]
           stock_quantity: number | null
           subcategory_id: string | null
           title: string
           updated_at: string
+          website_availability: string
           weight_kg: number | null
           width_mm: number | null
-          website_availability: string
           workshop_notes: string[]
         }
+        ComputedFields: never
         Insert: {
           arrived_at?: string
+          available_quantity?: number
           brand?: string | null
           capacity?: string | null
           category_id?: string | null
@@ -464,19 +551,20 @@ export type Database = {
           sku?: string
           slug?: string
           sold_at?: string | null
-          specs?: Json
+          specs?: NonNullable<Json>
           status?: Database["public"]["Enums"]["item_status"]
           stock_quantity?: number | null
           subcategory_id?: string | null
           title?: string
           updated_at?: string
+          website_availability?: string
           weight_kg?: number | null
           width_mm?: number | null
-          website_availability?: string
           workshop_notes?: string[]
         }
         Update: {
           arrived_at?: string
+          available_quantity?: number
           brand?: string | null
           capacity?: string | null
           category_id?: string | null
@@ -501,15 +589,15 @@ export type Database = {
           sku?: string
           slug?: string
           sold_at?: string | null
-          specs?: Json
+          specs?: NonNullable<Json>
           status?: Database["public"]["Enums"]["item_status"]
           stock_quantity?: number | null
           subcategory_id?: string | null
           title?: string
           updated_at?: string
+          website_availability?: string
           weight_kg?: number | null
           width_mm?: number | null
-          website_availability?: string
           workshop_notes?: string[]
         }
         Relationships: [
@@ -560,6 +648,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["lead_event_kind"]
           lead_id: string
         }
+        ComputedFields: never
         Insert: {
           actor_id?: string | null
           body?: string | null
@@ -635,6 +724,7 @@ export type Database = {
           interest_id: string
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           interest_id: string
           tag_id: string
@@ -685,6 +775,7 @@ export type Database = {
           subcategory_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           budget_max_cents?: number | null
@@ -698,7 +789,7 @@ export type Database = {
           item_id?: string | null
           lead_id: string
           min_grade?: Database["public"]["Enums"]["condition_grade"] | null
-          search_vector?: unknown
+          search_vector?: never
           subcategory_id?: string | null
           updated_at?: string
         }
@@ -715,7 +806,7 @@ export type Database = {
           item_id?: string | null
           lead_id?: string
           min_grade?: Database["public"]["Enums"]["condition_grade"] | null
-          search_vector?: unknown
+          search_vector?: never
           subcategory_id?: string | null
           updated_at?: string
         }
@@ -838,7 +929,7 @@ export type Database = {
           deleted_at: string | null
           email: string | null
           email_consent_at: string | null
-          extra: Json
+          extra: NonNullable<Json>
           full_name: string | null
           id: string
           last_contacted_at: string | null
@@ -853,6 +944,7 @@ export type Database = {
           updated_at: string
           whatsapp_consent_at: string | null
         }
+        ComputedFields: never
         Insert: {
           billing_address?: string | null
           birthday?: string | null
@@ -863,14 +955,14 @@ export type Database = {
           deleted_at?: string | null
           email?: string | null
           email_consent_at?: string | null
-          extra?: Json
+          extra?: NonNullable<Json>
           full_name?: string | null
           id?: string
           last_contacted_at?: string | null
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
-          phone_e164?: string | null
+          phone_e164?: never
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           unsubscribe_token?: string
@@ -888,14 +980,14 @@ export type Database = {
           deleted_at?: string | null
           email?: string | null
           email_consent_at?: string | null
-          extra?: Json
+          extra?: NonNullable<Json>
           full_name?: string | null
           id?: string
           last_contacted_at?: string | null
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
-          phone_e164?: string | null
+          phone_e164?: never
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           unsubscribe_token?: string
@@ -907,39 +999,44 @@ export type Database = {
       }
       order_invoices: {
         Row: {
-          received_cents: number
-          balance_cents: number
-          document: Json
+          balance_cents: number | null
+          document: NonNullable<Json>
           id: string
           issued_at: string
           issued_by: string | null
           kind: string
           number: string
           order_id: string
+          received_cents: number | null
           share_token: string
           supersedes: string | null
           total_cents: number
         }
+        ComputedFields: never
         Insert: {
-          document: Json
+          balance_cents?: never
+          document: NonNullable<Json>
           id?: string
           issued_at?: string
           issued_by?: string | null
           kind: string
           number: string
           order_id: string
+          received_cents?: never
           share_token?: string
           supersedes?: string | null
           total_cents: number
         }
         Update: {
-          document?: Json
+          balance_cents?: never
+          document?: NonNullable<Json>
           id?: string
           issued_at?: string
           issued_by?: string | null
           kind?: string
           number?: string
           order_id?: string
+          received_cents?: never
           share_token?: string
           supersedes?: string | null
           total_cents?: number
@@ -974,33 +1071,40 @@ export type Database = {
           held_from_status: Database["public"]["Enums"]["item_status"] | null
           id: string
           item_id: string
+          item_unit_id: string
           list_price_cents: number
           order_id: string
           position: number
           retail_price_cents: number | null
           sold_price_cents: number | null
+          unit_code: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           held_from_status?: Database["public"]["Enums"]["item_status"] | null
           id?: string
           item_id: string
+          item_unit_id: string
           list_price_cents: number
           order_id: string
           position?: number
           retail_price_cents?: number | null
           sold_price_cents?: number | null
+          unit_code: string
         }
         Update: {
           created_at?: string
           held_from_status?: Database["public"]["Enums"]["item_status"] | null
           id?: string
           item_id?: string
+          item_unit_id?: string
           list_price_cents?: number
           order_id?: string
           position?: number
           retail_price_cents?: number | null
           sold_price_cents?: number | null
+          unit_code?: string
         }
         Relationships: [
           {
@@ -1045,32 +1149,85 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_lines_unit_listing_fk"
+            columns: ["item_unit_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "item_units"
+            referencedColumns: ["id", "item_id"]
+          },
+          {
+            foreignKeyName: "order_lines_unit_listing_fk"
+            columns: ["item_unit_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "unit_costs"
+            referencedColumns: ["id", "item_id"]
+          },
         ]
       }
       order_receipts: {
-        Row: { id: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at: string; recorded_by: string | null; request_id: string }
-        Insert: { id?: string; order_id: string; amount_cents: number; entry_kind: string; method: Database["public"]["Enums"]["payment_method"]; reference: string; received_on: string; recorded_at?: string; recorded_by: string | null; request_id: string }
-        Update: { amount_cents?: number }
-        Relationships: [{ foreignKeyName: "order_receipts_order_id_fkey"; columns: ["order_id"]; isOneToOne: false; referencedRelation: "orders"; referencedColumns: ["id"] }]
+        Row: {
+          amount_cents: number
+          entry_kind: string
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          order_id: string
+          received_on: string
+          recorded_at: string
+          recorded_by: string | null
+          reference: string
+          request_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          entry_kind: string
+          id?: string
+          method: Database["public"]["Enums"]["payment_method"]
+          order_id: string
+          received_on: string
+          recorded_at?: string
+          recorded_by?: string | null
+          reference: string
+          request_id: string
+        }
+        Update: {
+          amount_cents?: number
+          entry_kind?: string
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          order_id?: string
+          received_on?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          reference?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_receipts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_economics"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_receipts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       orders: {
         Row: {
-          purchase_option: string | null
-          sale_plan: string | null
-          plan_start: string | null
-          plan_months: number | null
-          plan_payment_day: number | null
-          plan_deposit_cents: number | null
-          plan_final_due: string | null
-          plan_confirmed_at: string | null
           charged_total_cents: number | null
           code: string
           created_at: string
           created_by: string | null
           delivery: boolean
           delivery_address: string | null
-          installation_quote_cents: number | null
-          installation_accepted: boolean
           delivery_fee_cents: number
           delivery_km: number | null
           delivery_km_source: string | null
@@ -1078,12 +1235,22 @@ export type Database = {
           hire_returned_at: string | null
           hire_start: string | null
           id: string
+          installation_accepted: boolean
+          installation_quote_cents: number | null
           kind: string
           lead_id: string | null
           notes: string | null
           paid_at: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_reference: string | null
+          plan_confirmed_at: string | null
+          plan_deposit_cents: number | null
+          plan_final_due: string | null
+          plan_months: number | null
+          plan_payment_day: number | null
+          plan_start: string | null
+          purchase_option: string | null
+          sale_plan: string | null
           sold_by: string | null
           sold_total_cents: number | null
           status: Database["public"]["Enums"]["order_status"]
@@ -1091,23 +1258,14 @@ export type Database = {
           void_reason: string | null
           voided_at: string | null
         }
+        ComputedFields: never
         Insert: {
-          purchase_option?: string | null
-          sale_plan?: string | null
-          plan_start?: string | null
-          plan_months?: number | null
-          plan_payment_day?: number | null
-          plan_deposit_cents?: number | null
-          plan_final_due?: string | null
-          plan_confirmed_at?: string | null
-          charged_total_cents?: number | null
+          charged_total_cents?: never
           code?: string
           created_at?: string
           created_by?: string | null
           delivery?: boolean
           delivery_address?: string | null
-          installation_quote_cents?: number | null
-          installation_accepted?: boolean
           delivery_fee_cents?: number
           delivery_km?: number | null
           delivery_km_source?: string | null
@@ -1115,12 +1273,22 @@ export type Database = {
           hire_returned_at?: string | null
           hire_start?: string | null
           id?: string
+          installation_accepted?: boolean
+          installation_quote_cents?: number | null
           kind?: string
           lead_id?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_reference?: string | null
+          plan_confirmed_at?: string | null
+          plan_deposit_cents?: number | null
+          plan_final_due?: string | null
+          plan_months?: number | null
+          plan_payment_day?: number | null
+          plan_start?: string | null
+          purchase_option?: string | null
+          sale_plan?: string | null
           sold_by?: string | null
           sold_total_cents?: number | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -1129,22 +1297,12 @@ export type Database = {
           voided_at?: string | null
         }
         Update: {
-          purchase_option?: string | null
-          sale_plan?: string | null
-          plan_start?: string | null
-          plan_months?: number | null
-          plan_payment_day?: number | null
-          plan_deposit_cents?: number | null
-          plan_final_due?: string | null
-          plan_confirmed_at?: string | null
-          charged_total_cents?: number | null
+          charged_total_cents?: never
           code?: string
           created_at?: string
           created_by?: string | null
           delivery?: boolean
           delivery_address?: string | null
-          installation_quote_cents?: number | null
-          installation_accepted?: boolean
           delivery_fee_cents?: number
           delivery_km?: number | null
           delivery_km_source?: string | null
@@ -1152,12 +1310,22 @@ export type Database = {
           hire_returned_at?: string | null
           hire_start?: string | null
           id?: string
+          installation_accepted?: boolean
+          installation_quote_cents?: number | null
           kind?: string
           lead_id?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_reference?: string | null
+          plan_confirmed_at?: string | null
+          plan_deposit_cents?: number | null
+          plan_final_due?: string | null
+          plan_months?: number | null
+          plan_payment_day?: number | null
+          plan_start?: string | null
+          purchase_option?: string | null
+          sale_plan?: string | null
           sold_by?: string | null
           sold_total_cents?: number | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -1184,7 +1352,7 @@ export type Database = {
       }
       outreach_campaigns: {
         Row: {
-          audience: Json
+          audience: NonNullable<Json>
           channel: Database["public"]["Enums"]["outreach_channel"]
           created_at: string
           created_by: string | null
@@ -1200,8 +1368,9 @@ export type Database = {
           subject: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
-          audience?: Json
+          audience?: NonNullable<Json>
           channel?: Database["public"]["Enums"]["outreach_channel"]
           created_at?: string
           created_by?: string | null
@@ -1218,7 +1387,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          audience?: Json
+          audience?: NonNullable<Json>
           channel?: Database["public"]["Enums"]["outreach_channel"]
           created_at?: string
           created_by?: string | null
@@ -1256,6 +1425,7 @@ export type Database = {
           state: Database["public"]["Enums"]["outreach_state"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           body?: string | null
           campaign_id?: string | null
@@ -1370,6 +1540,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           approved_at?: string | null
@@ -1399,6 +1570,7 @@ export type Database = {
           position: number
           slug: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           category_id: string
@@ -1454,6 +1626,7 @@ export type Database = {
           position: number
           slug: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           id?: string
@@ -1504,6 +1677,7 @@ export type Database = {
           title: string | null
           unrealised_margin_cents: number | null
         }
+        ComputedFields: never
         Relationships: []
       }
       item_economics: {
@@ -1522,6 +1696,7 @@ export type Database = {
           title: string | null
           total_cost_cents: number | null
         }
+        ComputedFields: never
         Relationships: []
       }
       lead_demand: {
@@ -1541,6 +1716,7 @@ export type Database = {
           subcategory_id: string | null
           unsubscribed: boolean | null
         }
+        ComputedFields: never
         Relationships: [
           {
             foreignKeyName: "lead_interests_category_id_fkey"
@@ -1593,6 +1769,7 @@ export type Database = {
           units_sold: number | null
           units_total: number | null
         }
+        ComputedFields: never
         Relationships: []
       }
       money_by_month: {
@@ -1605,6 +1782,7 @@ export type Database = {
           revenue_cents: number | null
           units_sold: number | null
         }
+        ComputedFields: never
         Relationships: []
       }
       money_position: {
@@ -1621,6 +1799,7 @@ export type Database = {
           units_sold_all_time: number | null
           unrealised_margin_cents: number | null
         }
+        ComputedFields: never
         Relationships: []
       }
       order_economics: {
@@ -1640,6 +1819,7 @@ export type Database = {
           sold_total_cents: number | null
           status: Database["public"]["Enums"]["order_status"] | null
         }
+        ComputedFields: never
         Relationships: []
       }
       order_line_economics: {
@@ -1659,6 +1839,7 @@ export type Database = {
           status: Database["public"]["Enums"]["item_status"] | null
           title: string | null
         }
+        ComputedFields: never
         Relationships: [
           {
             foreignKeyName: "order_lines_item_id_fkey"
@@ -1717,6 +1898,7 @@ export type Database = {
           position: number | null
           slug: string | null
         }
+        ComputedFields: never
         Relationships: []
       }
       public_item_media: {
@@ -1732,6 +1914,7 @@ export type Database = {
           storage_path: string | null
           width: number | null
         }
+        ComputedFields: never
         Relationships: [
           {
             foreignKeyName: "item_media_item_id_fkey"
@@ -1765,6 +1948,8 @@ export type Database = {
       }
       public_items: {
         Row: {
+          availability: string | null
+          available_quantity: number | null
           brand: string | null
           capacity: string | null
           category_name: string | null
@@ -1799,17 +1984,64 @@ export type Database = {
           width_mm: number | null
           workshop_notes: string[] | null
         }
+        ComputedFields: never
         Relationships: []
+      }
+      unit_costs: {
+        Row: {
+          auction: number | null
+          delivery: number | null
+          id: string | null
+          item_id: string | null
+          labour: number | null
+          labour_hours: number | null
+          other: number | null
+          parts: number | null
+          premium: number | null
+          total: number | null
+          workshop: number | null
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_analytics"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_economics"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_units_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "public_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
-      choose_purchase_option: { Args: { p_order_id: string; p_option: string }; Returns: undefined }
-      save_sale_plan: { Args: { p_order_id: string; p_plan: string; p_total?: number; p_start?: string; p_months?: number; p_day?: number; p_deposit?: number; p_due?: string }; Returns: undefined }
-      set_order_installation: { Args: { p_order_id: string; p_quote?: number | null; p_accepted?: boolean }; Returns: undefined }
-      record_order_receipt: { Args: { p_order_id: string; p_amount: number; p_method: Database["public"]["Enums"]["payment_method"]; p_reference: string; p_date: string; p_request_id: string; p_refund?: boolean }; Returns: Json }
-
       add_order_line: {
-        Args: { p_code?: string; p_item_id?: string; p_order_id: string }
+        Args: {
+          p_code?: string
+          p_item_id?: string
+          p_order_id: string
+          p_quantity?: number
+        }
         Returns: Json
       }
       capture_lead: {
@@ -1825,6 +2057,10 @@ export type Database = {
           p_phone?: string
           p_whatsapp_consent?: boolean
         }
+        Returns: undefined
+      }
+      choose_purchase_option: {
+        Args: { p_option: string; p_order_id: string }
         Returns: undefined
       }
       claim_access_request: {
@@ -1886,13 +2122,38 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_order_receipt: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_order_id: string
+          p_reference: string
+          p_refund?: boolean
+          p_request_id: string
+        }
+        Returns: Json
+      }
       remove_order_line: {
-        Args: { p_item_id: string; p_order_id: string }
+        Args: { p_item_id: string; p_line_id?: string; p_order_id: string }
         Returns: Json
       }
       reopen_order: { Args: { p_order_id: string }; Returns: Json }
       return_hire: { Args: { p_order_id: string }; Returns: Json }
-      run_stock_match: { Args: never; Returns: number }
+      run_stock_match: { Args: Record<PropertyKey, never>; Returns: number }
+      save_sale_plan: {
+        Args: {
+          p_day?: number
+          p_deposit?: number
+          p_due?: string
+          p_months?: number
+          p_order_id: string
+          p_plan: string
+          p_start?: string
+          p_total?: number
+        }
+        Returns: undefined
+      }
       search_everything: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1907,6 +2168,7 @@ export type Database = {
       search_sellable_items: {
         Args: { p_limit?: number; p_order_id?: string; p_query: string }
         Returns: {
+          available_quantity: number
           id: string
           list_price_cents: number
           on_order: string
@@ -1924,6 +2186,10 @@ export type Database = {
           p_item_id: string
           p_kind: Database["public"]["Enums"]["cost_kind"]
         }
+        Returns: undefined
+      }
+      set_order_installation: {
+        Args: { p_accepted?: boolean; p_order_id: string; p_quote?: number }
         Returns: undefined
       }
       settle_access_request: {
@@ -2022,12 +2288,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2051,11 +2317,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2076,11 +2342,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2101,11 +2367,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2118,11 +2384,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

@@ -243,20 +243,23 @@ export async function createOrderCustomer(
  */
 export async function addLine(
   orderId: string,
-  ref: { code?: string; itemId?: string }
+  ref: { code?: string; itemId?: string; quantity?: number }
 ): Promise<ActionResult> {
   await requireStaff();
+  if (!Number.isInteger(ref.quantity ?? 1) || (ref.quantity ?? 1) < 1 || (ref.quantity ?? 1) > 10000)
+    return { ok: false, error: "Choose a whole quantity between 1 and 10000." };
   const client = await supabase();
 
   const { data, error } = await client.rpc("add_order_line", {
     p_order_id: orderId,
     p_code: ref.code,
     p_item_id: ref.itemId,
+    p_quantity: ref.quantity ?? 1,
   });
 
   if (error) return { ok: false, error: humanise(error.message) };
 
-  const added = data as { item_id?: string; sku?: string; title?: string } | null;
+  const added = data as { item_id?: string; sku?: string; units?: string[] } | null;
 
   // The machine is now reserved and off the website, so the storefront needs to
   // hear about it. Fire-and-forget by design — a sale must not wait on another
@@ -264,7 +267,7 @@ export async function addLine(
   if (added?.item_id) await revalidateStorefront(added.item_id);
   await revalidateSale(orderId, added?.item_id ? [added.item_id] : []);
 
-  return { ok: true, notice: added?.sku ? `${added.sku} added and held.` : undefined };
+  return { ok: true, notice: added?.units?.length ? `${added.units.join(", ")} added and held.` : undefined };
 }
 
 /**
@@ -282,13 +285,14 @@ export async function addLine(
  * `published_at` has to be a second write, and it re-runs the lead matcher,
  * which is exactly right for a machine that has just become available again.
  */
-export async function removeLine(orderId: string, itemId: string): Promise<ActionResult> {
+export async function removeLine(orderId: string, itemId: string, lineId?: string): Promise<ActionResult> {
   await requireStaff();
   const client = await supabase();
 
   const { data, error } = await client.rpc("remove_order_line", {
     p_order_id: orderId,
     p_item_id: itemId,
+    p_line_id: lineId,
   });
 
   if (error) return { ok: false, error: humanise(error.message) };
@@ -296,6 +300,7 @@ export async function removeLine(orderId: string, itemId: string): Promise<Actio
   const result = data as { status?: ItemStatus; sku?: string } | null;
 
   const back = await setStage(itemId, result?.status ?? "listed");
+  await revalidateStorefront(itemId);
   await revalidateSale(orderId, [itemId]);
 
   // setStage reports its own trouble — "it is not on the website yet, it needs
@@ -344,7 +349,7 @@ export async function setInstallation(orderId: string, input: { quote: number | 
   if (input.quote != null && (!Number.isSafeInteger(input.quote) || input.quote < 0)) return { ok: false, error: "Enter a valid non-negative installation quote." };
   if (input.accepted && input.quote == null) return { ok: false, error: "Enter the installation quote before accepting it." };
   const client = await supabase();
-  const { error } = await client.rpc("set_order_installation", { p_order_id: orderId, p_quote: input.quote, p_accepted: input.accepted });
+  const { error } = await client.rpc("set_order_installation", { p_order_id: orderId, p_quote: input.quote ?? undefined, p_accepted: input.accepted });
   if (error) return { ok: false, error: humanise(error.message) };
   const invoiceNote = await refreshInvoice(orderId);
   await revalidateSale(orderId);
@@ -592,17 +597,14 @@ export async function discardOrder(orderId: string): Promise<ActionResult> {
         "This order was paid before and reopened. Cancel it instead, so its history stays.",
     };
 
-  const { data: lines } = await client
+  const { data: lines, error: lineError } = await client
     .from("order_lines")
-    .select("item_id, held_from_status")
+    .select("item_id")
     .eq("order_id", orderId);
+  if (lineError) return { ok: false, error: humanise(lineError.message) };
 
-  // Each machine and the stage it was in before this order picked it up. Read
-  // now, because the delete below takes the lines with it.
-  const items = (lines ?? []).map((l) => ({
-    id: l.item_id,
-    back: (l.held_from_status as ItemStatus) ?? ("listed" as ItemStatus),
-  }));
+  // Read the affected listings before the cascade releases this draft's units.
+  const items = [...new Set((lines ?? []).map((l) => l.item_id))];
 
   const admin = createAdminClient();
 
@@ -646,11 +648,14 @@ export async function discardOrder(orderId: string): Promise<ActionResult> {
   // available again.
   const stuck: string[] = [];
   for (const item of items) {
-    const restored = await setStage(item.id, item.back);
-    if (!restored.ok) stuck.push(item.id);
+    // The cascade releases only this draft's units in the database. Publish
+    // the resulting aggregate stage, preserving every other order's hold.
+    const { data: current } = await client.from("items").select("status").eq("id", item).single();
+    const restored = current ? await setStage(item, current.status) : { ok: false };
+    if (!restored.ok) stuck.push(item);
   }
 
-  const ids = items.map((i) => i.id);
+  const ids = items;
   for (const id of ids) await revalidateStorefront(id);
   await revalidateSale(orderId, ids);
 
@@ -822,7 +827,10 @@ export async function saveSalePlan(orderId: string, input: {
   });
   if (error) return { ok: false, error: humanise(error.message) };
   const invoiceNote = await refreshInvoice(orderId);
-  await revalidateSale(orderId);
+  const { data: lines } = await client.from("order_lines").select("item_id").eq("order_id", orderId);
+  const items = [...new Set((lines ?? []).map(line => line.item_id))];
+  for (const id of items) await revalidateStorefront(id);
+  await revalidateSale(orderId, items);
   return { ok: true, notice: invoiceNote || "Sale terms saved." };
 }
 

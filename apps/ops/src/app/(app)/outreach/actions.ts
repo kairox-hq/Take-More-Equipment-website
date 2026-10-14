@@ -127,6 +127,7 @@ type MessageForSending = {
     list_price_cents: number | null;
     condition_grade: "N" | "A" | "B" | "C" | null;
     status: string;
+    available_quantity: number;
     published_at: string | null;
     deleted_at: string | null;
     media: MediaRef[];
@@ -140,7 +141,7 @@ const MESSAGE_SELECT = `
                           category:categories(name),
                           subcategory:subcategories(name)),
   item:items(title, brand, slug, list_price_cents, condition_grade,
-             status, published_at, deleted_at,
+             status, available_quantity, published_at, deleted_at,
              media:item_media(kind, storage_path, external_url, position,
                               duration_seconds))
 `;
@@ -283,7 +284,7 @@ async function deliverEmail(
   // the queue since Tuesday can be about something that sold on Wednesday, and
   // an email about a machine somebody cannot buy is worse than no email.
   if (!item) return { ok: false, error: "That machine is no longer on the system." };
-  if (item.deleted_at || !item.published_at || item.status !== "listed") {
+  if (item.deleted_at || !item.published_at || item.status !== "listed" || item.available_quantity < 1) {
     return { ok: false, error: "That machine is no longer for sale. Nothing sent." };
   }
 

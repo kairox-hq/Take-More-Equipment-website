@@ -20,6 +20,7 @@ export default async function CampaignsPage() {
       .from("items")
       .select("id, title, brand, list_price_cents, published_at")
       .eq("status", "listed")
+      .gt("available_quantity", 0)
       .not("published_at", "is", null)
       .is("deleted_at", null)
       .order("published_at", { ascending: false })

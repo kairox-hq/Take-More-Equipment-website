@@ -86,6 +86,7 @@ type PublicItemRow = {
   sale_price_cents: number | null;
   sold: boolean | null;
   availability?: PublicAvailability;
+  available_quantity?: number;
   featured: boolean | null;
   tag_slugs: string[] | null;
   published_at?: string | null;
@@ -127,6 +128,7 @@ function toEquipment(row: PublicItemRow, images: string[]): Equipment {
     weightKg: Number(row.weight_kg ?? 0),
     sold,
     availability: row.availability ?? "available",
+    availableQuantity: row.available_quantity,
     featured: row.featured ?? false,
     publishedAt: row.published_at ?? undefined,
   };

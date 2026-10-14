@@ -8,6 +8,7 @@ import {
   getEconomics,
   getFeaturedCount,
   getItem,
+  getItemUnits,
   getSubcategories,
   getTags,
 } from "@/lib/queries";
@@ -17,6 +18,7 @@ import { storefrontOrigin } from "@/lib/storefront";
 import { canSeeCosts } from "@takemore/core";
 import ItemEditor from "./ItemEditor";
 import WhoWantsThis from "./WhoWantsThis";
+import UnitInventory from "./UnitInventory";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,7 @@ export default async function ItemPage({
   const [
     staff,
     item,
+    units,
     divisions,
     categories,
     subcategories,
@@ -51,6 +54,7 @@ export default async function ItemPage({
   ] = await Promise.all([
     staffPromise,
     getItem(id),
+    getItemUnits(id),
     getDivisions(),
     getCategories(),
     getSubcategories(),
@@ -77,6 +81,7 @@ export default async function ItemPage({
 
       <ItemEditor
         item={item}
+        unitInventory={<UnitInventory itemId={id} units={units} />}
         divisions={divisions}
         categories={categories}
         subcategories={subcategories}
@@ -104,6 +109,7 @@ export default async function ItemPage({
           // those two are the rule.
           sellable={
             item.status === "listed" &&
+            item.available_quantity > 0 &&
             item.published_at !== null &&
             (item.list_price_cents ?? 0) > 0
           }

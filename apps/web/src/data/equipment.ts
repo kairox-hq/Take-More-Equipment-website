@@ -73,6 +73,7 @@ export type Equipment = {
   /** Sold units stay listed with a badge until a human unpublishes them. */
   sold?: boolean;
   availability?: PublicAvailability;
+  availableQuantity?: number;
   /** Surfaced in the highlighted row above the catalogue. */
   featured?: boolean;
   /** ISO timestamp of publication, when the view supplied one. Feeds the sitemap. */

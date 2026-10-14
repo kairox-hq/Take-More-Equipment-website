@@ -378,7 +378,7 @@ check("each machine is billed at what it was asked for, not at its share of the 
       stored.d.lines.map((l) => l.total_cents).join() === "3000000,2000000",
       stored.d.lines.map((l) => l.total_cents).join());
 check("and the machine's own code is on the line, so it can be identified later",
-      stored.d.lines.every((l) => /^A\d{3}$/.test(l.code)),
+      stored.d.lines.every((l) => /^A\d{3}\.[1-9]\d*$/.test(l.code)),
       stored.d.lines.map((l) => l.code).join());
 check("subtotal, discount and delivery add up to the total, to the cent",
       stored.d.subtotal_cents + stored.d.adjustment_cents + stored.d.delivery.fee_cents
@@ -573,12 +573,14 @@ console.log("\nTAKING A MACHINE OFF");
    */
   await db.exec(`select public.add_order_line('${draft.id}', '${off.sku}')`);
   await db.exec(`update public.orders set lead_id='${lead.id}' where id='${draft.id}'`);
-  await db.exec(`update public.items set status='sold' where id='${off.id}'`);
+  check("a listing stage edit cannot sell a customer's held unit", await refuses(db, `update public.items set status='sold' where id='${off.id}'`));
+  // Simulate privileged corruption to retain the final payment guard check.
+  await db.exec(`update public.item_units set status='sold',current_order_line_id=null where item_id='${off.id}'`);
   let refusal = "";
   try { await db.exec(`select public.confirm_order_paid('${draft.id}', 600000, 'card_machine', null)`); }
   catch (error) { refusal = String(error.message); }
   check("a sale refuses a machine that was sold by hand while it sat on the order, and names it",
-        refusal.includes(off.sku) && /sold/.test(refusal), refusal);
+        refusal.includes(off.sku) && /no longer held/.test(refusal), refusal);
   r = await one(db, `select status from public.orders where id='${draft.id}'`);
   check("and the order stays open", r.status === "draft", r.status);
   r = await one(db, `select public.remove_order_line('${draft.id}', '${off.id}') x`);
@@ -680,12 +682,13 @@ check("the hire RPC refuses a sale",
 {
   const byHand = await make("Sold by hand", 500_000, 100_000, 0);
   await db.exec(`select public.add_order_line('${hire.id}', '${byHand.sku}')`);
-  await db.exec(`update public.items set status='sold' where id='${byHand.id}'`);
+  check("a listing stage edit cannot sell a unit held by a hire", await refuses(db, `update public.items set status='sold' where id='${byHand.id}'`));
+  await db.exec(`update public.item_units set status='sold',current_order_line_id=null where item_id='${byHand.id}'`);
   let refusal = "";
   try { await db.exec(`select public.confirm_hire_paid('${hire.id}', 'card_machine', null)`); }
   catch (error) { refusal = String(error.message); }
   check("a hire refuses a machine that was sold by hand while it sat on the order, and names it",
-        refusal.includes(byHand.sku) && /sold/.test(refusal), refusal);
+        refusal.includes(byHand.sku) && /no longer held/.test(refusal), refusal);
   r = await one(db, `select status from public.orders where id='${hire.id}'`);
   check("and the hire stays open", r.status === "draft", r.status);
   await db.exec(`select public.remove_order_line('${hire.id}', '${byHand.id}')`);
@@ -773,20 +776,21 @@ check("explicit selection takes precedence over category", itemSegments({ segmen
 check("malformed selection cannot leak into a segment", itemSegments({ segments: [] }, "industrial-kitchen").length === 0);
 check("shared products belong to both catalogues", itemSegments({ segments: ["homestaging", "industrial-kitchen"] }).length === 2);
 
-console.log("\nINTERNAL STOCK QUANTITY");
-r = await one(db, `select stock_quantity from public.items where id='${big.id}'`);
+console.log("\nTRACKED STOCK QUANTITY");
+const quantityItem = await make("Quantity test",10000,0,0);
+r = await one(db, `select stock_quantity from public.items where id='${quantityItem.id}'`);
 check("existing stock has no invented quantity", r.stock_quantity === null);
-await db.exec(`update public.items set stock_quantity=12 where id='${big.id}'`);
-r = await one(db, `select stock_quantity from public.items where id='${big.id}'`);
+await db.exec(`update public.items set stock_quantity=12 where id='${quantityItem.id}'`);
+r = await one(db, `select stock_quantity from public.items where id='${quantityItem.id}'`);
 check("manual quantity persists", r.stock_quantity === 12);
-check("negative quantities are rejected", await refuses(db, `update public.items set stock_quantity=-1 where id='${big.id}'`));
-await db.exec(`update public.items set stock_quantity=0 where id='${big.id}'`);
-r = await one(db, `select stock_quantity from public.items where id='${big.id}'`);
+check("negative quantities are rejected", await refuses(db, `update public.items set stock_quantity=-1 where id='${quantityItem.id}'`));
+await db.exec(`update public.items set stock_quantity=0 where id='${quantityItem.id}'`);
+r = await one(db, `select stock_quantity from public.items where id='${quantityItem.id}'`);
 check("zero quantity is allowed", r.stock_quantity === 0);
 r = await one(db, `select has_column_privilege('anon', 'public.items', 'stock_quantity', 'select') allowed`);
 check("anonymous readers cannot read internal quantities", r.allowed === false);
 r = await one(db, `select count(*) n from information_schema.columns where table_schema='public' and table_name='public_items' and column_name='stock_quantity'`);
-check("public catalogue excludes quantity", num(r.n) === 0);
+check("public catalogue excludes the internal total count", num(r.n) === 0);
 
 console.log("\nSALE PLANS AND RECEIPTS");
 const plannedItem = await make('Plan item', 100000, 10000, 0);
@@ -968,6 +972,100 @@ check('approved staff can remove the last product tag',num((await one(db,`select
 check('new charge columns cannot be written outside the validating RPC',!(await one(db,"select has_column_privilege('authenticated','public.orders','installation_quote_cents','update') allowed")).allowed);
 await db.exec('reset role');
 
+console.log('\nPHYSICAL UNITS AND MULTI-QUANTITY ORDERS');
+const batch = await make('Seven mattresses',100_000,350_003,0);
+await db.exec(`update public.items set stock_quantity=7 where id='${batch.id}'`);
+const orderForUnits = async () => one(db,`insert into public.orders(lead_id) values('${testBuyer.id}') returning id,code`);
+const unitOrder = await orderForUnits();
+const otherUnits = await orderForUnits();
+const batchState = async () => one(db,`select status,stock_quantity,available_quantity,website_availability from public.items where id='${batch.id}'`);
+const batchLines = async id => all(db,`select id,item_unit_id,unit_code,list_price_cents,sold_price_cents from public.order_lines where order_id='${id}' order by position,id`);
+const freeCodes = async () => (await all(db,`select code from public.item_units where item_id='${batch.id}' and current_order_line_id is null and retired_at is null and status='listed' order by unit_number`)).map(u=>u.code);
+r=await batchState();
+check('a count of seven creates seven numbered physical units and seven available',r.stock_quantity===7 && r.available_quantity===7 && (await freeCodes()).length===7);
+await db.exec(`select public.add_order_line('${unitOrder.id}',null,'${batch.id}',2)`);
+let assigned=await batchLines(unitOrder.id);
+check('quantity two holds the first two distinct physical units',assigned.map(l=>l.unit_code).join()===`${batch.sku}.1,${batch.sku}.2`);
+check('the price snapshots count both units',assigned.reduce((s,l)=>s+num(l.list_price_cents),0)===200_000);
+r=await batchState();
+check('two held out of seven leaves five available on one public listing',r.available_quantity===5 && r.status==='listed' && r.website_availability==='available' && num((await one(db,`select count(*) n from public.public_items where id='${batch.id}'`)).n)===1);
+await db.exec('set role anon');
+r=await one(db,`select available_quantity from public.public_items where id='${batch.id}'`);
+check('the anonymous storefront sees the real remaining quantity',r.available_quantity===5);
+check('anonymous readers cannot see physical identities or customer holds',await refuses(db,'select * from public.item_units'));
+await db.exec('reset role');
+await db.exec(`select public.add_order_line('${otherUnits.id}',null,'${batch.id}',3)`);
+let otherAssigned=await batchLines(otherUnits.id);
+check('another order gets different physical units from the same listing',otherAssigned.map(l=>l.unit_code).join()===`${batch.sku}.3,${batch.sku}.4,${batch.sku}.5`);
+check('an oversized request fails atomically with no extra holds',await refuses(db,`select public.add_order_line('${otherUnits.id}',null,'${batch.id}',3)`) && (await batchLines(otherUnits.id)).length===3 && (await batchState()).available_quantity===2);
+check('zero, negative and null quantities cannot allocate stock',await refuses(db,`select public.add_order_line('${otherUnits.id}',null,'${batch.id}',0)`) && await refuses(db,`select public.add_order_line('${otherUnits.id}',null,'${batch.id}',-1)`) && await refuses(db,`select public.add_order_line('${otherUnits.id}',null,'${batch.id}',null)`));
+await db.exec(`select public.choose_purchase_option('${unitOrder.id}','layby'); select public.save_sale_plan('${unitOrder.id}','layby',200000,'${dateSA}',2,15,20000,null)`);
+check('confirmed lay-by fixes its exact physical units',await refuses(db,`select public.add_order_line('${unitOrder.id}',null,'${batch.id}',1)`) && await refuses(db,`select public.remove_order_line('${unitOrder.id}','${batch.id}','${assigned[0].id}')`));
+await db.exec(`select public.issue_invoice('${unitOrder.id}','proforma','${issuer()}'::jsonb)`);
+let unitDoc=await latestDocument(unitOrder.id);
+check('the proforma prints both assigned unit codes and their combined price',unitDoc.d.lines.map(l=>l.code).join()===`${batch.sku}.1,${batch.sku}.2` && unitDoc.d.total_cents===200_000 && checkInvoiceTotals(unitDoc.d)===null);
+await receipt(unitOrder.id,20_000);
+check('the lay-by deposit reduces the combined balance, without selling free stock',(await balanceFor(unitOrder.id)).balance===180_000 && (await batchState()).available_quantity===2);
+const unitCost=await one(db,`select sum(cost_total_cents) total from public.order_line_economics where order_id='${unitOrder.id}'`);
+check('the order carries only its units share of the existing listing cost',num(unitCost.total)===100_000);
+await receipt(unitOrder.id,180_000);
+r=await one(db,`select status,sold_total_cents from public.orders where id='${unitOrder.id}'`);
+check('full payment sells both assigned units for the combined total',r.status==='paid' && num(r.sold_total_cents)===200_000 && (await batchLines(unitOrder.id)).every(l=>num(l.sold_price_cents)===100_000));
+r=await one(db,`select count(*) filter(where is_sold) sold,sum(revenue_cents) revenue,sum(cost_cents) cost from public.item_analytics where item_id='${batch.id}'`);
+check('partial listing sales report two units and actual revenue while preserving total costs',num(r.sold)===2 && num(r.revenue)===200_000 && num(r.cost)===350_003 && (await batchState()).status==='listed');
+check('held and sold physical units cannot be removed by lowering the count',await refuses(db,`update public.items set stock_quantity=0 where id='${batch.id}'`));
+await db.exec(`select public.void_order('${unitOrder.id}','Unit test cancellation')`);
+check('cancelling releases those same two unit identities without touching another order',(await freeCodes()).join()===`${batch.sku}.1,${batch.sku}.2,${batch.sku}.6,${batch.sku}.7` && (await batchState()).available_quantity===4 && (await batchLines(otherUnits.id)).length===3);
+check('cancelled orders retain their assigned numbers and immutable payment history',(await batchLines(unitOrder.id)).map(l=>l.unit_code).join()===assigned.map(l=>l.unit_code).join() && (await balanceFor(unitOrder.id)).received===200_000);
+
+const reclaim = await orderForUnits();
+await db.exec(`select public.add_order_line('${reclaim.id}',null,'${batch.id}',2)`);
+check('released units can be reserved again under the same numbers',(await batchLines(reclaim.id)).map(l=>l.unit_code).join()===`${batch.sku}.1,${batch.sku}.2`);
+const singleRemoved=(await batchLines(reclaim.id))[0];
+await db.exec(`select public.remove_order_line('${reclaim.id}','${batch.id}','${singleRemoved.id}')`);
+check('removing one line releases only that unit',(await batchLines(reclaim.id)).length===1 && (await freeCodes()).includes(`${batch.sku}.1`) && !(await freeCodes()).includes(`${batch.sku}.2`));
+await db.exec(`select public.add_order_line('${reclaim.id}',null,'${batch.id}',1); select public.remove_order_line('${reclaim.id}','${batch.id}')`);
+check('an older caller without a line id still removes only one physical unit',(await batchLines(reclaim.id)).length===1);
+await db.exec(`delete from public.orders where id='${reclaim.id}'`);
+check('discarding a draft releases its units in the same database transaction',(await freeCodes()).includes(`${batch.sku}.2`) && (await batchState()).available_quantity===4);
+
+const allFree=await orderForUnits();
+await db.exec(`select public.add_order_line('${allFree.id}',null,'${batch.id}',4); select public.choose_purchase_option('${allFree.id}','layby'); select public.choose_purchase_option('${otherUnits.id}','layby')`);
+check('the listing is hidden only after all seven physical units are held on lay-by',(await batchState()).available_quantity===0 && (await batchState()).website_availability==='hidden');
+await db.exec('set role anon');
+check('zero-stock lay-by listings are denied through the public base API',num((await one(db,`select count(*) n from public.items where id='${batch.id}'`)).n)===0);
+await db.exec('reset role');
+await db.exec(`select public.void_order('${allFree.id}','Release test stock'); select public.void_order('${otherUnits.id}','Release test stock')`);
+check('cancellation restores all seven original unit numbers to the public listing',(await freeCodes()).length===7 && (await batchState()).website_availability==='available');
+
+const stockHire = await orderForUnits();
+await db.exec(`select public.add_order_line('${stockHire.id}',null,'${batch.id}',2); select public.choose_purchase_option('${stockHire.id}','hire'); update public.orders set hire_start='2026-09-01',hire_end='2026-09-02' where id='${stockHire.id}'; select public.confirm_hire_paid('${stockHire.id}','card_machine','Two units hired')`);
+check('hire pricing counts both units and leaves the remaining five available',num((await one(db,`select sold_total_cents from public.orders where id='${stockHire.id}'`)).sold_total_cents)===16_000 && (await batchState()).available_quantity===5);
+await db.exec(`select public.return_hire('${stockHire.id}')`);
+const nextHire=await orderForUnits();
+await db.exec(`select public.add_order_line('${nextHire.id}',null,'${batch.id}',2)`);
+await db.exec(`select public.void_order('${stockHire.id}','Correct old returned hire record')`);
+check('cancelling a returned hire never releases units now held by another order',(await batchState()).available_quantity===5 && (await all(db,`select u.id from public.item_units u join public.order_lines l on l.id=u.current_order_line_id where l.order_id='${nextHire.id}'`)).length===2);
+await db.exec(`select public.void_order('${nextHire.id}','Release test stock')`);
+await db.exec(`update public.items set stock_quantity=5 where id='${batch.id}'; update public.items set stock_quantity=7 where id='${batch.id}'`);
+check('stock reductions retire free identities and later additions never reuse labels',(await freeCodes()).join()===`${batch.sku}.1,${batch.sku}.2,${batch.sku}.3,${batch.sku}.4,${batch.sku}.5,${batch.sku}.8,${batch.sku}.9`);
+const codeOrder=await orderForUnits();
+await db.exec(`select public.add_order_line('${codeOrder.id}','${batch.sku}.9')`);
+check('a physical sticker can select that exact available unit',(await batchLines(codeOrder.id))[0].unit_code===`${batch.sku}.9`);
+check('a second order cannot allocate an already held physical unit',await refuses(db,`select public.add_order_line('${otherUnits.id}','${batch.sku}.9')`));
+await db.exec(`select public.void_order('${codeOrder.id}','Release test stock')`);
+
+await db.exec('set role authenticated');
+check('staff cannot overwrite the derived available quantity',await refuses(db,`update public.items set available_quantity=999 where id='${batch.id}'`));
+check('staff cannot forge unit statuses or assignments',await refuses(db,`update public.item_units set current_order_line_id=null,status='listed' where item_id='${batch.id}'`));
+check('staff cannot bypass stock allocation by inserting order lines',!(await one(db,"select has_table_privilege('authenticated','public.order_lines','insert') allowed")).allowed);
+const staffQuantityOrder=await one(db,`insert into public.orders(lead_id) values('${testBuyer.id}') returning id`);
+await db.exec(`select public.add_order_line('${staffQuantityOrder.id}',null,'${batch.id}',2)`);
+check('approved staff can allocate a quantity through the validating RPC',(await batchLines(staffQuantityOrder.id)).length===2);
+await db.exec(`select public.void_order('${staffQuantityOrder.id}','Staff cancellation')`);
+await db.exec('reset role');
+
+
 console.log('\nUPGRADING EXISTING PAYMENT HISTORY');
 let historicalVoid, historicalHire;
 const upgraded = await build({ before: '20261012154553_order_charges_payments_and_availability.sql', seed: async oldDb => {
@@ -996,6 +1094,44 @@ check('an existing paid hire is converted to the payment ledger exactly once',nu
 check('an existing complete hire is republished as Coming back soon',(await one(upgraded,`select availability from public.public_items where id='${historicalHire.item}'`)).availability==='on_hire');
 check('retired workshop reports are not publicly readable',!(await one(upgraded,"select has_column_privilege('anon','public.items','workshop_notes','select') allowed")).allowed);
 await upgraded.close();
+
+console.log('\nUPGRADING EXISTING PHYSICAL STOCK');
+let legacyUnits;
+const unitUpgrade = await build({before:'20261014131244_unit_inventory_and_quantity_orders.sql',seed:async oldDb=>{
+  await signIn(oldDb);
+  const cat=(await one(oldDb,'select id from public.categories limit 1')).id;
+  const buyer=(await one(oldDb,"insert into public.leads(full_name,email,source) values('Legacy unit test','legacy-units@example.test','walk_in') returning id")).id;
+  const oldItem=async(name,quantity)=>{
+    const i=await one(oldDb,`insert into public.items(title,category_id,condition_grade,list_price_cents,stock_quantity,description,status) values('${name}','${cat}','B',100000,${quantity},'A complete fixture for checking preservation of pre-existing unit records.','listed') returning id,sku`);
+    await oldDb.exec(`insert into public.item_media(item_id,kind,storage_path,is_placeholder) values('${i.id}','photo','${i.id}/test.jpg',false); update public.items set published_at=now() where id='${i.id}'`);
+    return i;
+  };
+  const stock=await oldItem('Existing seven-unit listing',7);
+  const oldOrder=(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id;
+  await oldDb.exec(`select public.add_order_line('${oldOrder}',null,'${stock.id}'); select public.choose_purchase_option('${oldOrder}','layby'); select public.save_sale_plan('${oldOrder}','layby',100000,'2026-01-01',2,15,10000,null); select public.issue_invoice('${oldOrder}','proforma','${issuer()}'::jsonb); select public.record_order_receipt('${oldOrder}',10000,'bank_transfer','Legacy deposit','2026-01-01',gen_random_uuid(),false)`);
+  const document=await one(oldDb,`select id,document from public.order_invoices where order_id='${oldOrder}' order by issued_at desc,number desc limit 1`);
+  const bench=await oldItem('Existing hold moved to workshop',1);
+  const benchOrder=(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id;
+  await oldDb.exec(`select public.add_order_line('${benchOrder}',null,'${bench.id}'); update public.items set status='refurbishing' where id='${bench.id}'`);
+  const empty=await oldItem('Existing empty listing',0);
+  legacyUnits={stock,oldOrder,document,bench,benchOrder,empty};
+}});
+r=await one(unitUpgrade,`select status,available_quantity from public.items where id='${legacyUnits.stock.id}'`);
+check('an existing single hold on a seven-unit listing leaves six real units available after upgrade',r.status==='listed' && r.available_quantity===6);
+r=await one(unitUpgrade,`select unit_code from public.order_lines where order_id='${legacyUnits.oldOrder}'`);
+check('the existing order receives a stable physical identity',r.unit_code===`${legacyUnits.stock.sku}.1`);
+r=await one(unitUpgrade,`select sold_total_cents,charged_total_cents from public.orders where id='${legacyUnits.oldOrder}'`);
+check('upgrading unit identities does not rewrite the historical agreement total',num(r.sold_total_cents)===100_000 && num(r.charged_total_cents)===100_000);
+r=await one(unitUpgrade,`select document from public.order_invoices where id='${legacyUnits.document.id}'`);
+check('an already issued legacy invoice remains byte-for-byte equivalent',JSON.stringify(r.document)===JSON.stringify(legacyUnits.document.document));
+r=await one(unitUpgrade,`select sum(amount_cents) n from public.order_receipts where order_id='${legacyUnits.oldOrder}'`);
+check('upgrading physical units preserves every actual payment',num(r.n)===10_000);
+await unitUpgrade.exec(`select public.void_order('${legacyUnits.benchOrder}','Release historical workshop hold')`);
+r=await one(unitUpgrade,`select status from public.item_units where item_id='${legacyUnits.bench.id}'`);
+check('cancelling a historical hold preserves a subsequent workshop move',r.status==='refurbishing');
+r=await one(unitUpgrade,`select count(*) n from public.item_units where item_id='${legacyUnits.empty.id}' and retired_at is null`);
+check('an existing zero count does not acquire invented available stock',num(r.n)===0);
+await unitUpgrade.close();
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {

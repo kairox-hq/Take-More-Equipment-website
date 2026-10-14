@@ -28,6 +28,7 @@ export default function EquipmentCard({
   power,
   sold,
   availability = "available",
+  availableQuantity,
   variant = "carousel",
   decorative = false,
 }: Equipment & { variant?: "carousel" | "grid"; decorative?: boolean }) {
@@ -123,6 +124,7 @@ export default function EquipmentCard({
             {brand}
           </span>
         )}
+        {availability === "available" && !sold && availableQuantity !== undefined && <span className="rounded-full bg-background/90 border border-white/20 px-3 py-1 text-xs text-white">{availableQuantity} available</span>}
         {availability !== "available" ? <span className="rounded-full bg-background/90 border border-white/20 px-3 py-1 text-xs text-white">{AVAILABILITY_LABELS[availability]}</span> : sold ? (
           <span
             className={`rounded-full bg-accent text-background font-medium tracking-widest uppercase shrink-0 ${

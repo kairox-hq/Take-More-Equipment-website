@@ -4,7 +4,6 @@ import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Panel } from "@takemore/ui";
-import { StatusPill } from "@takemore/ui";
 import {
   PURCHASE_OPTIONS,
   PURCHASE_OPTION_LABELS,
@@ -91,6 +90,7 @@ export default function OrderScreen({
   const [notice, setNotice] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  const [adding, setAdding] = useState(false);
   /** Hire dates typed but not yet saved. The pay button waits for them. */
   const [planDirty, setPlanDirty] = useState(false);
   const [chargesDirty, setChargesDirty] = useState(false);
@@ -117,7 +117,7 @@ export default function OrderScreen({
     await Promise.allSettled([...pending.current]);
   }, []);
 
-  const busy = isPending || switching || removing !== null;
+  const busy = isPending || switching || adding || removing !== null;
   const locked = order.status !== "draft" || Boolean(order.plan_confirmed_at);
   const hire = order.kind === "hire";
   /**
@@ -129,7 +129,7 @@ export default function OrderScreen({
   const hireTotal = days ? lines.reduce((sum, l) => sum + hireFeeCents(l.list_price_cents, days), 0) : 0;
   const showCosts = canSeeCosts(role) && economics !== null;
 
-  const costByItem = new Map(lineCosts.map((c) => [c.item_id, c]));
+  const costByLine = new Map(lineCosts.map((c) => [c.line_id, c]));
 
   const listTotal = lines.reduce((sum, line) => sum + line.list_price_cents, 0);
   const chargedTotal = (hire && order.status === "draft" ? hireTotal : order.sold_total_cents ?? listTotal) + orderChargesCents(order);
@@ -186,11 +186,14 @@ export default function OrderScreen({
     } finally { setSwitching(false); }
   };
 
-  const drop = async (itemId: string) => {
-    setRemoving(itemId);
-    const result = await removeLine(order.id, itemId);
-    setRemoving(null);
-    handled(result.ok ? { ok: true, message: result.notice } : { ok: false, message: result.error });
+  const drop = async (line: OrderLineRow) => {
+    setRemoving(line.id);
+    try {
+      const result = await removeLine(order.id, line.item_id, line.id);
+      handled(result.ok ? { ok: true, message: result.notice } : { ok: false, message: result.error });
+    } catch {
+      handled({ ok: false, message: "Could not confirm the stock change. Refresh the order before trying again." });
+    } finally { setRemoving(null); }
   };
 
   return (
@@ -249,7 +252,7 @@ export default function OrderScreen({
         }
       >
         <div className="space-y-3">
-          {!locked && <ProductPicker orderId={order.id} onDone={handled} />}
+          {!locked && <ProductPicker orderId={order.id} disabled={busy} onBusy={setAdding} onDone={handled} />}
 
           {lines.length === 0 ? (
             <p className="text-sm font-light text-muted py-6 text-center">
@@ -258,7 +261,7 @@ export default function OrderScreen({
           ) : (
             <ul className="space-y-2">
               {lines.map((line, index) => {
-                const cost = costByItem.get(line.item_id);
+                const cost = costByLine.get(line.id);
                 const share = line.sold_price_cents ?? preview?.[index] ?? null;
 
                 return (
@@ -281,20 +284,23 @@ export default function OrderScreen({
                             </p>
                             <p className="text-[11px] font-light text-muted truncate">
                               <span className="font-mono tracking-widest">
-                                {line.item?.sku}
+                                {line.unit_code}
                               </span>
                               {line.item?.brand ? ` · ${line.item.brand}` : ""}
                             </p>
                           </div>
 
                           <div className="shrink-0 flex items-center gap-2">
-                            {line.item && <StatusPill status={line.item.status} size="sm" />}
+                            <span className="text-[11px] text-muted">
+                              {order.status === "void" ? "Released" : order.status === "paid" ? hire ? order.hire_returned_at ? "Returned" : "On hire" : "Sold" : option === "layby" ? "On lay-by" : "Held"}
+                            </span>
+                            <a href={`/items/${line.item_id}/label?unit=${line.item_unit_id}`} target="_blank" rel="noreferrer" className="text-[11px] text-muted hover:text-accent" aria-label={`Print label ${line.unit_code}`}>Label</a>
                             {!locked && (
                               <button
                                 type="button"
-                                onClick={() => drop(line.item_id)}
+                                onClick={() => drop(line)}
                                 disabled={busy}
-                                aria-label="Take this machine off the order"
+                                aria-label={`Remove unit ${line.unit_code}`}
                                 className="w-7 h-7 rounded-lg border border-border text-muted
                                            hover:text-status-sold hover:border-status-sold/40
                                            transition-colors flex items-center justify-center
@@ -355,6 +361,7 @@ export default function OrderScreen({
 
           {lines.length > 0 && (
             <div className="border-t border-white/5 pt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] tabular-nums justify-end">
+              <a className="mr-auto text-muted hover:text-accent" href={`/orders/${order.id}/labels`} target="_blank" rel="noreferrer">Print {lines.length} unit label{lines.length === 1 ? "" : "s"}</a>
               <Figure label="Asking" value={rands(listTotal)} strong />
               {hire && days ? (
                 <Figure label={`Hire, ${days} day${days === 1 ? "" : "s"}`} value={rands(hireTotal)} strong accent />
@@ -381,7 +388,7 @@ export default function OrderScreen({
         {option === 'payjustnow' && <p className="mt-3 text-xs text-muted">Record the payment received from PayJustNow. Customer instalments are handled by the provider.</p>}
       </Panel>
 
-      {!hire && option && option !== 'immediate' && option !== 'payjustnow' && <SalePlanPanel key={`${order.id}-${order.plan_confirmed_at ?? order.sale_plan}`} order={order} listTotal={listTotal} financeInitialPercent={financeInitialPercent} busy={busy || chargesDirty} onDone={handled} onDirty={setPlanDirty} />}
+      {!hire && option && option !== 'immediate' && option !== 'payjustnow' && <SalePlanPanel key={`${order.id}-${order.plan_confirmed_at ?? order.sale_plan}-${order.sold_total_cents ?? "quote"}`} order={order} listTotal={listTotal} financeInitialPercent={financeInitialPercent} busy={busy || chargesDirty} onDone={handled} onDirty={setPlanDirty} />}
 
       {hire && (
         <HirePanel

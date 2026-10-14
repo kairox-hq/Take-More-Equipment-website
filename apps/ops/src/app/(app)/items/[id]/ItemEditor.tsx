@@ -2,7 +2,7 @@
 
 import { gradeLabel } from "@takemore/core";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -53,6 +53,7 @@ type Item = Record<string, any>;
 
 export default function ItemEditor({
   item,
+  unitInventory,
   divisions,
   categories,
   subcategories,
@@ -65,6 +66,7 @@ export default function ItemEditor({
   storefrontUrl,
 }: {
   item: Item;
+  unitInventory: ReactNode;
   divisions: { id: string; name: string; slug: string }[];
   categories: { id: string; name: string; slug: string; division_id: string }[];
   subcategories: { id: string; name: string; slug: string; category_id: string }[];
@@ -430,12 +432,14 @@ export default function ItemEditor({
         onCountChange={setMediaCount}
       />
 
-      <Panel title="Stock quantity" subtitle="Internal only. Not shown on the website.">
-        <Field label="Number of units" hint="Update manually. Leave blank if not counted yet; enter 0 if none remain.">
+      <Panel title="Stock quantity" subtitle="The website shows the number available. Held and sold units keep their own history.">
+        <Field label="Total tracked units" hint="Include available, held and sold units. Increasing this adds new numbers; reducing it removes only free units. Blank keeps the original single unit.">
           <Input {...commit("stock_quantity", (value) => value === "" ? null : Number(value))}
-            type="number" min="0" max="2147483647" step="1" inputMode="numeric" placeholder="Not recorded" />
+            type="number" min="0" max="10000" step="1" inputMode="numeric" placeholder="1 (original unit)" />
         </Field>
       </Panel>
+
+      {unitInventory}
 
       <Panel title="The machine" subtitle="What it is, and what a buyer is looking at.">
         <div className="space-y-4">
@@ -658,6 +662,7 @@ export default function ItemEditor({
             (kind === "auction" ? setAuctionCents : setWorkshopCents)(cents)
           }
           listPriceCents={listPrice}
+          unitCount={item.stock_quantity ?? 1}
         />
       )}
 

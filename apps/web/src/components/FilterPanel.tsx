@@ -170,7 +170,7 @@ export default function FilterPanel({
                 )}
               </span>
               <span className="text-xs font-light text-muted">
-                {resultCount} {resultCount === 1 ? "unit" : "units"}
+                {resultCount} {resultCount === 1 ? "listing" : "listings"}
               </span>
             </span>
             <span className="ml-auto lg:hidden text-muted">
@@ -256,7 +256,7 @@ export default function FilterPanel({
 
           <Group label="Availability">
             <Row
-              label="Hide sold units"
+              label="Hide sold listings"
               active={filters.hideSold}
               onClick={() => setFilters({ ...filters, hideSold: !filters.hideSold })}
             />
@@ -269,7 +269,7 @@ export default function FilterPanel({
               onClick={() => setOpen(false)}
               className="flex-1 bg-accent text-background rounded-2xl px-5 py-3 text-sm font-medium"
             >
-              Show {resultCount} {resultCount === 1 ? "unit" : "units"}
+              Show {resultCount} {resultCount === 1 ? "listing" : "listings"}
             </button>
             {activeCount > 0 && (
               <button

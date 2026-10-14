@@ -49,7 +49,7 @@ export default function SalePlanPanel({ order, listTotal, financeInitialPercent,
       {!confirmed && !closed ? <>
         {plan && plan !== 'immediate' && <>
           <Field label="Agreed product total" required><RandInput valueCents={total} onChangeCents={setTotal} disabled={saving || busy} /></Field>
-          <p className="text-xs text-muted">Total including agreed charges: {rands(charged)}. All items on this order are held together; stock quantities are maintained manually.</p>
+          <p className="text-xs text-muted">Total including agreed charges: {rands(charged)}. The numbered units above are held for this order. Available stock updates automatically.</p>
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="Start / deposit date" required><Input type="date" value={start} max={todaySA()} onChange={e => setStart(e.target.value)} disabled={saving || busy} /></Field>
             {plan === 'layby' && <><Field label="Term"><select aria-label="Lay-by term" disabled={busy || saving} className="w-full bg-background border border-border rounded-xl p-3 text-sm" value={months} onChange={e => setMonths(Number(e.target.value))}><option value={2}>2 months</option><option value={3}>3 months</option></select></Field><Field label="Payment day each month"><Input type="number" disabled={busy || saving} min={1} max={31} value={day} onChange={e => setDay(Number(e.target.value))} /></Field></>}

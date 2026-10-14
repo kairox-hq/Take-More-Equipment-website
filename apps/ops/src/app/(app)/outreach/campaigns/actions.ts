@@ -117,7 +117,7 @@ export async function previewCampaign(id: string): Promise<CampaignPreview> {
   const { data: chosen } = await client
     .from("items")
     .select(
-      "id, title, brand, slug, status, published_at, deleted_at, list_price_cents, media:item_media(kind, storage_path, external_url, position)"
+      "id, title, brand, slug, status, available_quantity, published_at, deleted_at, list_price_cents, media:item_media(kind, storage_path, external_url, position)"
     )
     .in("id", campaign.item_ids);
 
@@ -127,6 +127,7 @@ export async function previewCampaign(id: string): Promise<CampaignPreview> {
     brand: string | null;
     slug: string;
     status: string;
+    available_quantity: number;
     published_at: string | null;
     deleted_at: string | null;
     list_price_cents: number | null;
@@ -134,7 +135,7 @@ export async function previewCampaign(id: string): Promise<CampaignPreview> {
   }[];
 
   const isLive = (row: (typeof all)[number]) =>
-    row.status === "listed" && row.published_at !== null && row.deleted_at === null;
+    row.status === "listed" && row.available_quantity > 0 && row.published_at !== null && row.deleted_at === null;
 
   const live = all.filter(isLive);
 
@@ -304,7 +305,7 @@ function bodyFor(
     "",
     ...lines,
     "",
-    "Each one is a single unit — when it goes, it goes. Reply to this and we will hold one for you.",
+    "Reply to check the available quantity and ask us to hold a unit for you.",
     "",
     "— Take More Catering Equipment, Montague Gardens",
   ].join("\n");
@@ -350,6 +351,7 @@ export async function sendCampaign(id: string): Promise<CampaignResult> {
     .select("id, title, brand, slug, list_price_cents, media:item_media(kind, storage_path, external_url, position)")
     .in("id", campaign.item_ids)
     .eq("status", "listed")
+    .gt("available_quantity", 0)
     .not("published_at", "is", null)
     .is("deleted_at", null);
 

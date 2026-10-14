@@ -265,3 +265,21 @@ export async function getRecentActivity(limit = 100) {
       .limit(limit)
   );
 }
+
+export type ItemUnit = {
+  id: string;
+  code: string;
+  unit_number: number;
+  status: ItemStatus;
+  retired_at: string | null;
+  line: { order: { id: string; code: string; kind: string; status: string; purchase_option: string | null } | null } | null;
+};
+
+/** Physical identities and holds are staff-only; the website reads a count. */
+export async function getItemUnits(itemId: string): Promise<ItemUnit[]> {
+  const { data, error } = await (await supabase()).from("item_units").select(
+    "id, code, unit_number, status, retired_at, line:order_lines!item_units_current_order_line_id_fkey(order:orders(id,code,kind,status,purchase_option))"
+  ).eq("item_id", itemId).order("unit_number");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as ItemUnit[];
+}

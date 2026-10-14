@@ -37,6 +37,7 @@ export default function CostsPanel({
   workshopCents,
   onFixedCostChange,
   listPriceCents,
+  unitCount = 1,
 }: {
   itemId: string;
   costs: { id: string; kind: CostKind; amount_cents: number; note: string | null }[];
@@ -44,6 +45,7 @@ export default function CostsPanel({
   workshopCents: number | null;
   onFixedCostChange: (kind: "auction" | "workshop", cents: number | null) => void;
   listPriceCents: number | null;
+  unitCount?: number;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<CostKind>(LEDGER_COST_KINDS[0]);
@@ -59,8 +61,9 @@ export default function CostsPanel({
     (workshopCents ?? 0) +
     ledger.reduce((sum, c) => sum + c.amount_cents, 0);
 
-  const margin = marginCents(listPriceCents, null, total);
-  const percent = marginPercent(listPriceCents, null, total);
+  const askingTotal = listPriceCents === null ? null : listPriceCents * unitCount;
+  const margin = marginCents(askingTotal, null, total);
+  const percent = marginPercent(askingTotal, null, total);
 
   /**
    * What each fixed box last wrote. Blurring a box that has not changed used
@@ -103,7 +106,7 @@ export default function CostsPanel({
   return (
     <Panel
       title="What it cost us"
-      subtitle="What was paid for it and what putting it right cost. Everyone on the team can see this."
+      subtitle={unitCount > 1 ? `Total costs for all ${unitCount} units. Orders receive their units’ share of this cost.` : "What was paid for it and what putting it right cost. Everyone on the team can see this."}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -157,9 +160,9 @@ export default function CostsPanel({
             <p className="text-sm font-light tabular-nums">{rands(total)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted mb-1">Asking</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted mb-1">Asking{unitCount > 1 ? " · all units" : ""}</p>
             <p className="text-sm font-light tabular-nums">
-              {listPriceCents ? rands(listPriceCents) : "—"}
+              {askingTotal ? rands(askingTotal) : "—"}
             </p>
           </div>
           <div>

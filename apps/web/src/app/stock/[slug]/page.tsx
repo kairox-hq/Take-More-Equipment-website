@@ -203,6 +203,7 @@ export default async function ProductPage({
             </p>
 
             {item.availability && item.availability !== "available" && <p role="status" className="text-accent text-sm mb-5">{AVAILABILITY_LABELS[item.availability]}. This item cannot be bought at the moment.</p>}
+            {!unavailable && item.availableQuantity !== undefined && <p role="status" className="text-accent text-sm mb-5">{item.availableQuantity} available · Price per unit</p>}
             {/* Price block */}
             <div className="bg-card rounded-[2rem] border border-border p-5 sm:p-6 md:p-8 mb-4 sm:mb-6">
               <div className="flex items-end justify-between gap-6 flex-wrap">

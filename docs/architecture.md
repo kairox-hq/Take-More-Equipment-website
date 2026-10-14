@@ -1,8 +1,11 @@
 # Take More Equipment — Platform Architecture & Build Plan
 
-> Current counter rules: reserved items remain visible and unavailable; items out on
-> hire show “Coming back soon”. Lay-by and Rental Finance items are hidden. Cancellation
-> and hire return restore eligible stock. Orders retain an immutable payment ledger;
+> Current counter rules: a listing contains numbered physical units. Orders hold
+> individual units and snapshot a price per unit; the website shows one listing
+> with its free quantity. Only when no free units remain do reserved items show
+> Reserved, hired items show “Coming back soon”, and lay-by / Rental Finance
+> holds hide the listing. Cancellation and hire return release only the order's
+> own units. Orders retain an immutable payment ledger;
 > accepted installation quotes affect
 > the generated total. Existing invoices receive new versions after amount or payment
 > changes, preserving earlier documents. The historical build plan below describes the

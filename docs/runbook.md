@@ -9,6 +9,41 @@ has to be filled in before the domain is pointed here, see
 
 ---
 
+## Quantities, lay-by and physical unit labels
+
+Apply `20261014131244_unit_inventory_and_quantity_orders.sql` before running
+the matching Ops and storefront release. It preserves order amounts, payments
+and issued documents. Existing order lines attach to unit `.1`; existing manual
+counts create the remaining numbered units. A blank legacy count keeps its
+original single unit. Conflicting live orders or a zero count on a live order
+stop the migration for reconciliation rather than creating stock.
+
+In **Orders → Products**, search for the listing, choose **Quantity**, and add.
+Two units of A020 receive A020.1 and A020.2, each with its price and label.
+Both are held immediately; confirming lay-by fixes those exact identities.
+Cancellation releases only those units and retains the agreement and payments.
+In a draft, remove a single unit with its own remove button. Discarding a draft
+also releases its units atomically.
+
+**Stock → item → Physical units** shows every number, state and linked order.
+Use **Print unit labels**, or print only the assigned labels from the order,
+then attach each number to that physical item. Numbers are never reused.
+**Total tracked units** includes available, held and sold units; increasing it
+adds new identities. Reducing it retires only free units, retaining their labels
+in history. Sold and held units cannot be removed by changing the count.
+
+Prices are per unit. Existing costs stay recorded as listing totals; order and
+dashboard figures allocate that ledger across the tracked units to the cent.
+The storefront shows one listing and its remaining available quantity. A
+partially held listing stays available; the final held unit determines the
+Reserved / Coming back soon / hidden behavior when no free units remain.
+Physical identities, order links and the total count remain staff-only.
+
+`npm run test:schema` verifies stock allocation, overselling refusals, partial
+payments, cancellation, returned hires, numbering and simulated staff/anonymous
+permissions against isolated Postgres. It does not verify a deployed Supabase
+API or the attachment of labels in the warehouse.
+
 ## Releasing sale terms and condition labels
 
 Apply `20260929154117_sale_plans_and_condition_labels.sql` and

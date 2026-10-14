@@ -101,8 +101,8 @@ export type ItemPatch = {
 export async function updateItem(id: string, patch: ItemPatch): Promise<ActionResult> {
   await requireStaff();
   if (patch.stock_quantity !== undefined && patch.stock_quantity !== null &&
-      (!Number.isInteger(patch.stock_quantity) || patch.stock_quantity < 0 || patch.stock_quantity > 2147483647)) {
-    return { ok: false, error: "Enter a whole number of units, 0 or more." };
+      (!Number.isInteger(patch.stock_quantity) || patch.stock_quantity < 0 || patch.stock_quantity > 10000)) {
+    return { ok: false, error: "Enter a whole number of units between 0 and 10000." };
   }
   const client = await supabase();
 
@@ -128,7 +128,7 @@ export async function updateItem(id: string, patch: ItemPatch): Promise<ActionRe
   revalidatePath("/items");
   // A published item that changes is a storefront change. A draft's is not,
   // and the write comes back with published_at so nobody has to ask twice.
-  if (data?.published_at && Object.keys(patch).some((key) => key !== "stock_quantity")) await revalidateStorefront(id);
+  if (data?.published_at) await revalidateStorefront(id);
   return { ok: true };
 }
 
