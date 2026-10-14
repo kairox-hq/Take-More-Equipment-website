@@ -1113,8 +1113,11 @@ const unitUpgrade = await build({before:'20261014131244_unit_inventory_and_quant
   const bench=await oldItem('Existing hold moved to workshop',1);
   const benchOrder=(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id;
   await oldDb.exec(`select public.add_order_line('${benchOrder}',null,'${bench.id}'); update public.items set status='refurbishing' where id='${bench.id}'`);
+  const relisted=await oldItem('Existing draft manually relisted',7);
+  const relistedOrder=(await one(oldDb,`insert into public.orders(lead_id) values('${buyer}') returning id`)).id;
+  await oldDb.exec(`select public.add_order_line('${relistedOrder}',null,'${relisted.id}'); update public.items set status='listed' where id='${relisted.id}'`);
   const empty=await oldItem('Existing empty listing',0);
-  legacyUnits={stock,oldOrder,document,bench,benchOrder,empty};
+  legacyUnits={stock,oldOrder,document,bench,benchOrder,relisted,relistedOrder,empty};
 }});
 r=await one(unitUpgrade,`select status,available_quantity from public.items where id='${legacyUnits.stock.id}'`);
 check('an existing single hold on a seven-unit listing leaves six real units available after upgrade',r.status==='listed' && r.available_quantity===6);
@@ -1126,6 +1129,11 @@ r=await one(unitUpgrade,`select document from public.order_invoices where id='${
 check('an already issued legacy invoice remains byte-for-byte equivalent',JSON.stringify(r.document)===JSON.stringify(legacyUnits.document.document));
 r=await one(unitUpgrade,`select sum(amount_cents) n from public.order_receipts where order_id='${legacyUnits.oldOrder}'`);
 check('upgrading physical units preserves every actual payment',num(r.n)===10_000);
+await unitUpgrade.exec(`select public.choose_purchase_option('${legacyUnits.relistedOrder}','immediate'); update public.item_units set status='sold' where item_id='${legacyUnits.relisted.id}' and unit_number=1`);
+check('a legacy draft cannot pay for a unit already marked sold',await refuses(unitUpgrade,`select public.confirm_order_paid('${legacyUnits.relistedOrder}',100000,'bank_transfer')`));
+await unitUpgrade.exec(`update public.item_units set status='listed' where item_id='${legacyUnits.relisted.id}' and unit_number=1; select public.confirm_order_paid('${legacyUnits.relistedOrder}',100000,'bank_transfer')`);
+r=await one(unitUpgrade,`select o.status,o.sold_total_cents,i.available_quantity from public.orders o join public.order_lines l on l.order_id=o.id join public.items i on i.id=l.item_id where o.id='${legacyUnits.relistedOrder}'`);
+check('a manually relisted legacy draft can still settle only its held unit',r.status==='paid' && num(r.sold_total_cents)===100_000 && r.available_quantity===6);
 await unitUpgrade.exec(`select public.void_order('${legacyUnits.benchOrder}','Release historical workshop hold')`);
 r=await one(unitUpgrade,`select status from public.item_units where item_id='${legacyUnits.bench.id}'`);
 check('cancelling a historical hold preserves a subsequent workshop move',r.status==='refurbishing');

@@ -17,6 +17,10 @@ and issued documents. Existing order lines attach to unit `.1`; existing manual
 counts create the remaining numbered units. A blank legacy count keeps its
 original single unit. Conflicting live orders or a zero count on a live order
 stop the migration for reconciliation rather than creating stock.
+Follow it with `20261014141218_preserve_legacy_unit_hold_payments.sql` so older
+drafts whose held item was manually moved back to For sale or the workshop
+retain their payment eligibility. Ownership checks still reject sold, deleted,
+retired or reassigned units; no historical order or stage is rewritten.
 
 In **Orders → Products**, search for the listing, choose **Quantity**, and add.
 Two units of A020 receive A020.1 and A020.2, each with its price and label.
