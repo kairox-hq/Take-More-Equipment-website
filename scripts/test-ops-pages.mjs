@@ -23,6 +23,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "node:crypto";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -65,8 +66,11 @@ function sessionCookies(session) {
 
 const stamp = Date.now();
 const email = `ops-pages-${stamp}@takemore.test`;
-const password = "test-password-1234";
+const password = randomBytes(32).toString("base64url");
 let userId;
+let leadId;
+let orderId;
+let staffClient;
 
 async function setup() {
   const { data, error } = await admin.auth.admin.createUser({
@@ -93,6 +97,7 @@ async function setup() {
     password,
   });
   if (signInError) throw new Error(`signIn: ${signInError.message}`);
+  staffClient = anon;
 
   return sessionCookies(signIn.session).join("; ");
 }
@@ -223,6 +228,7 @@ async function run(cookie) {
     .single();
 
   if (lead) {
+    leadId = lead.id;
     const { data: category } = await admin
       .from("categories")
       .select("id")
@@ -243,7 +249,6 @@ async function run(cookie) {
     });
 
     await visit(cookie, `/leads/${lead.id}`, { contains: "Page Smoke Person" });
-    await admin.from("leads").delete().eq("id", lead.id);
   } else {
     fail("create a lead to open", "insert returned nothing");
   }
@@ -255,7 +260,7 @@ async function run(cookie) {
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle();
-  if (item) await visit(cookie, `/items/${item.id}`, { contains: "Number of units" });
+  if (item) await visit(cookie, `/items/${item.id}`, { contains: "Total tracked units" });
 
   // The printable label. Its own route group with its own layout, so a broken
   // auth check there would not show up anywhere else in this file.
@@ -275,23 +280,40 @@ async function run(cookie) {
     .single();
 
   if (order) {
-    if (item) {
-      await admin.from("order_lines").insert({
-        order_id: order.id,
-        item_id: item.id,
-        list_price_cents: 100000,
+    orderId = order.id;
+    const { data: free } = await staffClient.from("items").select("id")
+      .is("deleted_at", null).gt("available_quantity", 0).limit(1).maybeSingle();
+    if (free) {
+      const { error } = await staffClient.rpc("add_order_line", {
+        p_order_id: order.id, p_item_id: free.id, p_quantity: 1,
       });
+      if (error) throw new Error(`add unit: ${error.message}`);
+      const { data: line, error: lineError } = await staffClient.from("order_lines")
+        .select("unit_code").eq("order_id", order.id).single();
+      if (lineError) throw new Error(`read unit: ${lineError.message}`);
+      await visit(cookie, `/orders/${order.id}`, { contains: line.unit_code });
+      await visit(cookie, `/orders/${order.id}/labels`, { contains: line.unit_code });
+    } else {
+      await visit(cookie, `/orders/${order.id}`, { contains: order.code });
     }
-    await visit(cookie, `/orders/${order.id}`, { contains: order.code });
-    await admin.from("orders").delete().eq("id", order.id);
   } else {
     fail("create an order to open", "insert returned nothing");
   }
 }
 
 async function cleanup() {
-  await admin.from("leads").delete().like("email", "%@takemore.test");
-  if (userId) await admin.auth.admin.deleteUser(userId);
+  if (orderId) {
+    const { error } = await admin.from("orders").delete().eq("id", orderId);
+    if (error) fail("clean up test order", error.message);
+  }
+  if (leadId) {
+    const { error } = await admin.from("leads").delete().eq("id", leadId);
+    if (error) fail("clean up test customer", error.message);
+  }
+  if (userId) {
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (error) fail("clean up test account", error.message);
+  }
 }
 
 let cookie;
